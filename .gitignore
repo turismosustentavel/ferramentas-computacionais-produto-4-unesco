@@ -1,0 +1,38 @@
+# Dados: nada abaixo de dados/ e versionado, exceto o README
+dados/*
+!dados/README.md
+
+# Chaves e credenciais
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Saidas que os scripts gravam ao lado do codigo
+*.csv
+*.xlsx
+*.xls
+*.json
+*.geojson
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.zip
+*.png
+*.html
+camadas_qgis/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
