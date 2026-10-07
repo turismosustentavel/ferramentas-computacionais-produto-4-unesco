@@ -33,7 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from comum import ACERVO, MUNICIPIOS, POR_CODIGO  # noqa: E402
+from comum import ACERVO, MUNICIPIOS  # noqa: E402
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
@@ -41,7 +41,7 @@ BASE = ACERVO / "09_Base_Socioeconomica_Municipal" / "08_MTur_Dados_Abertos"
 SAIDA = BASE / "rais_turismo"
 SAIDA.mkdir(parents=True, exist_ok=True)
 
-zips = list((BASE / "nacional").glob("empregos_formais_turismo*"))
+zips = sorted((BASE / "nacional").glob("empregos_formais_turismo*"))
 if not zips:
     print("Arquivo da RAIS não encontrado. Rode antes o script 10.")
     sys.exit(1)

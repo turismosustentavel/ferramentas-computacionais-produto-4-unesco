@@ -23,7 +23,6 @@ from __future__ import annotations
 import io
 import json
 import sys
-import zipfile
 from collections import Counter, defaultdict
 
 import pandas as pd
@@ -104,11 +103,13 @@ if csv_pontos.exists():
     print(f"    {len(dfp)} pontos em {dfp['municipio'].nunique()} municípios")
 else:
     notas.append(f"Ausente: {csv_pontos}")
+    for cod in cobertura:
+        cobertura[cod]["Pontos de aferição selecionados"] = 0
 
 # ==============================================================================
-# 3. CAMADAS SIG DO PAINEL DE DECISAO
+# 3. CAMADAS DA SELECAO DOS PONTOS
 # ==============================================================================
-print("\n[3] Camadas SIG do painel de decisão")
+print("\n[3] Camadas da seleção dos pontos")
 CAMADAS = [
     ("1_pontos_afericao_selecionados", "Camada SIG: pontos de aferição"),
     ("2_pontos_sobreposicao_fluxos",   "Camada SIG: sobreposição de fluxos"),
@@ -341,9 +342,10 @@ for _, r in matriz.iterrows():
     pct = f"{fic / sel * 100:.0f}%" if sel else "—"
     linhas_md.append(
         f"| {r['Município']} | {sel} | {fic} | **{sel - fic}** | {pct} |")
+pct_tot = f"{tot_fic / tot_sel * 100:.0f}%" if tot_sel else "—"
 linhas_md.append(
     f"| **Total** | **{tot_sel}** | **{tot_fic}** | **{tot_sel - tot_fic}** | "
-    f"**{tot_fic / tot_sel * 100:.0f}%** |")
+    f"**{pct_tot}** |")
 
 # --- Ausencias por municipio -------------------------------------------------
 linhas_md += ["", "---", "", "## 3. Ausências por município", ""]
@@ -392,4 +394,4 @@ if notas:
 
 md = DIR_GESTAO / "auditoria_cobertura.md"
 md.write_text("\n".join(linhas_md) + "\n", encoding="utf-8")
-print(f"Leitura narrativa gravada em: {md}")
+print(f"Lacunas por município gravadas em: {md}")

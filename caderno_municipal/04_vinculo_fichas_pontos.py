@@ -27,8 +27,10 @@ METODO
        um-para-um por similaridade de nome, e nao escolha gulosa independente.
        Sem isso, duas fichas disputam o mesmo ponto e ambas erram.
     3. Rotulos genericos ("P3", "Rotatoria") nao casam por nome - sao resolvidos
-       pelo rotulo dos pinos de campo (script 05) ou por eliminacao, quando a
-       atribuicao um-para-um deixa um unico par possivel.
+       pelos vinculos confirmados em OVERRIDES (informados pela equipe de campo
+       ou tirados do cruzamento dos pinos das listas de campo com a camada) ou
+       por eliminacao, quando a atribuicao um-para-um deixa um unico par
+       possivel.
 
 SAIDA
     02_Dados_Municipais/vinculo_fichas_pontos.xlsx
@@ -50,7 +52,7 @@ from scipy.optimize import linear_sum_assignment
 
 sys.path.insert(0, str(Path(__file__).parent))
 from comum import (  # noqa: E402
-    CAMPO, JOTFORM, DIR_DADOS, MUNICIPIOS, normalizar_municipio,
+    CAMPO, JOTFORM, DIR_DADOS, normalizar_municipio,
 )
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
@@ -247,7 +249,10 @@ FORMULARIOS = [
 
 fichas: list[dict] = []
 for rotulo, padrao, col_mun, col_nome in FORMULARIOS:
-    arq = sorted(JOTFORM.glob(padrao))[0]
+    arqs = sorted(JOTFORM.glob(padrao))
+    if not arqs:
+        sys.exit(f"Exportacao das fichas nao encontrada: {JOTFORM / padrao}")
+    arq = arqs[0]
     for enc in ("utf-8", "latin-1"):
         try:
             df = pd.read_csv(arq, encoding=enc, low_memory=False)

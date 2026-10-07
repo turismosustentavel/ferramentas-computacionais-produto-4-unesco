@@ -10,7 +10,8 @@ Projeto UNESCO UNES 2369/2025 | Itaipu Parquetec
 Converte os dados da selecao dos pontos em camadas vetoriais:
 1. Pontos de Afericao Selecionados (decisoes registradas)
 2. Pontos de Sobreposicao de Fluxos (clusters classificados por frequencia)
-3. Manchas de Fluxo / Rotas (trajetorias e pontos TomTom)
+3. Vertices das rotas TomTom (camada 3_manchas_fluxo_rotas; o nome do
+   arquivo foi mantido)
 4. Atrativos Turisticos (classificacao Produto 4)
 
 Formatos gerados:
@@ -18,16 +19,22 @@ Formatos gerados:
 - GeoPackage (.gpkg com todas as 4 camadas em arquivo unico)
 - GeoJSON (.geojson individual por camada)
 
-Entradas (caminhos relativos a pasta de trabalho, que e a pasta da selecao
-dos pontos: "Entregas/Produto 4/produção/Seleção dos pontos para aferição"):
+Entradas, na pasta de trabalho (variavel de ambiente P4_SELECAO_PONTOS, como
+na esteira; sem ela, a pasta corrente). Cada entrada e procurada primeiro
+solta nessa pasta, como a esteira grava, e, se nao estiver la, no layout do
+acervo ("Entregas/Produto 4/produção/Seleção dos pontos para aferição"),
+abaixo da mesma pasta:
 - pontos_afericao_selecionados*.csv   pontos escolhidos, com justificativa
                                       (MUNICIPIO, ORDEM, NOME, LATITUDE,
-                                      LONGITUDE, JUSTIFIC, DATA_HORA)
-- ranked_by_frequency.csv ou final/z_top_ranked/top*_clusters_per_city_*.csv
-- final/z_rotas_tomtom/tomtom_routes.csv
+                                      LONGITUDE, JUSTIFIC, DATA_HORA); sem
+                                      --csv, usa o mais recente deles
+- ranked_by_frequency.csv, ou top100_clusters_per_city_r100.csv ou
+  top20_clusters_per_city_r50.csv (no acervo, em final/z_top_ranked/)
+- tomtom_routes.csv (no acervo, em final/z_rotas_tomtom/)
 - atrativos_qualitativo_georeferenciado.csv ou atrativos_georeferenciados_limpo.csv
 
-Saidas: pasta camadas_qgis/ (ou a indicada em --out).
+Saidas: pasta camadas_qgis/ dentro da pasta de trabalho (ou a indicada em
+--out).
 
 Uso:
     python exportar_camadas.py
@@ -37,7 +44,6 @@ Uso:
 
 import os
 import sys
-import glob
 import shutil
 import zipfile
 import argparse
@@ -54,16 +60,25 @@ import geopandas as gpd
 from shapely.geometry import Point
 
 
+# Pasta de trabalho, com a mesma convencao da esteira de selecao dos pontos
+PASTA = Path(os.environ.get("P4_SELECAO_PONTOS") or ".")
+
+
+def candidatos(nome, subpasta_acervo=None):
+    """Caminhos possiveis de uma entrada: primeiro solta na pasta de trabalho
+    (como a esteira grava) e, depois, na subpasta do acervo, se houver."""
+    caminhos = [PASTA / nome]
+    if subpasta_acervo:
+        caminhos.append(PASTA / subpasta_acervo / nome)
+    return caminhos
+
+
 def find_latest_csv():
-    """Busca automaticamente o arquivo CSV de pontos mais recente."""
-    candidates = []
-    
-    # Diretorio atual
-    candidates.extend(glob.glob("pontos_afericao_selecionados*.csv"))
-    candidates.extend(glob.glob("*.csv"))
-    
+    """Busca o CSV de pontos selecionados (pontos_afericao_selecionados*.csv)
+    na pasta de trabalho. Devolve o mais recente e o numero de arquivos
+    validos encontrados."""
     valid_csvs = []
-    for c in set(candidates):
+    for c in PASTA.glob("pontos_afericao_selecionados*.csv"):
         try:
             p = Path(c)
             if p.is_file() and p.stat().st_size > 0:
@@ -75,10 +90,10 @@ def find_latest_csv():
             continue
             
     if not valid_csvs:
-        return None
-        
+        return None, 0
+
     valid_csvs.sort(key=lambda x: x[0], reverse=True)
-    return valid_csvs[0][1]
+    return valid_csvs[0][1], len(valid_csvs)
 
 
 def load_selected_points(csv_path):
@@ -145,11 +160,11 @@ def load_selected_points(csv_path):
 
 def load_overlap_clusters():
     """Carrega os pontos de sobreposicao de fluxos (clusters com frequencia e rank)."""
-    paths = [
-        "ranked_by_frequency.csv",
-        "final/z_top_ranked/top100_clusters_per_city_r100.csv",
-        "final/z_top_ranked/top20_clusters_per_city_r50.csv"
-    ]
+    paths = (
+        candidatos("ranked_by_frequency.csv")
+        + candidatos("top100_clusters_per_city_r100.csv", "final/z_top_ranked")
+        + candidatos("top20_clusters_per_city_r50.csv", "final/z_top_ranked")
+    )
     for p in paths:
         if os.path.exists(p):
             print(f"Lendo pontos de sobreposicao: {p}")
@@ -187,12 +202,15 @@ def load_overlap_clusters():
 
 
 def load_flow_routes():
-    """Carrega os pontos das rotas / manchas de fluxo TomTom."""
-    path = "final/z_rotas_tomtom/tomtom_routes.csv"
-    if not os.path.exists(path):
+    """Carrega os vertices das rotas TomTom."""
+    path = next(
+        (p for p in candidatos("tomtom_routes.csv", "final/z_rotas_tomtom") if os.path.exists(p)),
+        None
+    )
+    if path is None:
         return None
         
-    print(f"Lendo manchas e rotas de fluxo: {path}")
+    print(f"Lendo vertices das rotas: {path}")
     try:
         df = pd.read_csv(path)
         df.columns = [c.lower().strip() for c in df.columns]
@@ -227,8 +245,8 @@ def load_flow_routes():
 def load_attractions():
     """Carrega a base de atrativos turisticos do estudo."""
     paths = [
-        "atrativos_qualitativo_georeferenciado.csv",
-        "atrativos_georeferenciados_limpo.csv"
+        PASTA / "atrativos_qualitativo_georeferenciado.csv",
+        PASTA / "atrativos_georeferenciados_limpo.csv"
     ]
     for p in paths:
         if os.path.exists(p):
@@ -316,44 +334,6 @@ def export_all_qgis_layers(layers_dict, output_dir="camadas_qgis", epsg_code=432
             f.write("UTF-8\n")
         print(f"   + Shapefile gerado: {layer_key}.shp (.shx, .dbf, .prj, .cpg)")
 
-    # Instrucoes de uso no QGIS
-    readme_file = shp_temp_dir / "LEIAME_QGIS.txt"
-    with open(readme_file, "w", encoding="utf-8") as f:
-        f.write(f"""================================================================================
-CAMADAS VETORIAIS PARA QGIS - PROJETO UNESCO & ITAIPU PARQUETEC
-UNES 2369/2025 - Selecao de Pontos para Afericao
-================================================================================
-
-COMO ABRIR NO QGIS:
-1. Abra o QGIS (versao 3.0 ou superior).
-2. Arraste e solte este arquivo .ZIP diretamente para a tela do QGIS.
-   O QGIS exibira uma janela para marcar quais camadas deseja carregar:
-   - 1_pontos_afericao_selecionados : Pontos de afericao escolhidos no painel
-   - 2_pontos_sobreposicao_fluxos  : Pontos de sobreposicao classificados por frequencia
-   - 3_manchas_fluxo_rotas          : Trajetorias e pontos de fluxo TomTom
-   - 4_atrativos_turisticos         : Atrativos turisticos mapeados
-3. Como alternativa, utilize o arquivo 'pontos_afericao_unesco.gpkg' (GeoPackage).
-
-DETALHES DO SISTEMA DE COORDENADAS (CRS):
-- Projecao: {crs_name}
-- Codigo EPSG: {crs_str}
-- Unidade: Graus Decimais
-
-CAMADAS E CAMPOS:
-1. pontos_afericao_selecionados:
-   - MUNICIPIO, ORDEM, NOME, LATITUDE, LONGITUDE, JUSTIFIC, DATA_HORA
-
-2. pontos_sobreposicao_fluxos:
-   - MUNICIPIO, RANK, FREQ, LATITUDE, LONGITUDE
-
-3. manchas_fluxo_rotas:
-   - MUNICIPIO, ID_ROTA, NOME_ROTA, LATITUDE, LONGITUDE
-
-4. atrativos_turisticos:
-   - MUNICIPIO, ID_ATRATIV, NOME, RANK_PROD4, LATITUDE, LONGITUDE
-================================================================================
-""")
-
     zip_dest = out_path / "pontos_afericao_unesco_shapefile.zip"
     with zipfile.ZipFile(zip_dest, "w", zipfile.ZIP_DEFLATED) as zf:
         for f in shp_temp_dir.iterdir():
@@ -376,19 +356,27 @@ CAMADAS E CAMPOS:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Exportar camadas completas (Pontos Selecionados, Sobreposicao, Manchas de Fluxo e Atrativos) para QGIS.")
+    parser = argparse.ArgumentParser(description="Exportar camadas completas (Pontos Selecionados, Sobreposicao, Vertices das Rotas e Atrativos) para QGIS.")
     parser.add_argument("--csv", "-c", type=str, default=None, help="Caminho para o arquivo CSV de pontos selecionados.")
-    parser.add_argument("--out", "-o", type=str, default="camadas_qgis", help="Diretorio de saida para os arquivos GIS.")
+    parser.add_argument("--out", "-o", type=str, default=None, help="Diretorio de saida para os arquivos GIS (padrao: camadas_qgis/ na pasta de trabalho).")
     parser.add_argument("--crs", type=int, default=4326, choices=[4326, 4674], help="Codigo EPSG (4326 = WGS84, 4674 = SIRGAS 2000).")
-    
+
     args = parser.parse_args()
-    
+    output_dir = args.out if args.out is not None else PASTA / "camadas_qgis"
+
     csv_file = args.csv
     if not csv_file:
-        csv_file = find_latest_csv()
-        if csv_file:
+        csv_file, n_csvs = find_latest_csv()
+        if csv_file is None:
+            print(f"Erro: nenhum arquivo pontos_afericao_selecionados*.csv em {PASTA.resolve()}. "
+                  "Indique o CSV de pontos selecionados com --csv.")
+            sys.exit(1)
+        if n_csvs > 1:
+            print(f"Arquivo CSV de pontos selecionados detectado: {csv_file} "
+                  f"(o mais recente de {n_csvs} arquivos pontos_afericao_selecionados*.csv)")
+        else:
             print(f"Arquivo CSV de pontos selecionados detectado: {csv_file}")
-            
+
     layers = {}
     
     # 1. Pontos Selecionados
@@ -401,7 +389,7 @@ def main():
     if df_sobre is not None and len(df_sobre) > 0:
         layers["2_pontos_sobreposicao_fluxos"] = df_sobre
         
-    # 3. Manchas de Fluxo / Rotas
+    # 3. Vertices das rotas
     df_rotas = load_flow_routes()
     if df_rotas is not None and len(df_rotas) > 0:
         layers["3_manchas_fluxo_rotas"] = df_rotas
@@ -416,7 +404,7 @@ def main():
         sys.exit(1)
         
     try:
-        export_all_qgis_layers(layers, output_dir=args.out, epsg_code=args.crs)
+        export_all_qgis_layers(layers, output_dir=output_dir, epsg_code=args.crs)
     except Exception as e:
         print(f"Erro durante a geracao dos arquivos: {e}")
         import traceback

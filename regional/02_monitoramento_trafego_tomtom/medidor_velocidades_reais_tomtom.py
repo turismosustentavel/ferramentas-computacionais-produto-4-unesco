@@ -25,13 +25,12 @@ O QUE FAZ:
             razao < 0,70          Intenso / Retenção Severa
             0,70 <= razao < 0,88  Moderado / Alerta de Fluidez
             razao >= 0,88         Fluidez Plena / Tráfego Livre
-        cor_badge: código de cor associado ao status.
 
     Quando a API não responde ou devolve resposta vazia, a porta é gravada
     com valores estimados: 60 km/h real e livre, razão 1,0, perda 0,
     status "Fluidez Plena (Estimada)" e confiança 0,5.
-    Há pausa de 0,15 s entre consultas. As requisições HTTPS usam contexto
-    SSL sem verificação de certificado.
+    Há pausa de 0,15 s entre consultas. As requisições HTTPS usam o contexto
+    SSL padrão, com verificação de certificado.
 
 ENTRADAS (caminhos relativos a P4_DADOS):
     Entregas/Produto 4/produção/12_portas_entrada_terrestres_oficiais_shp/
@@ -52,7 +51,7 @@ SAÍDAS (caminhos relativos a P4_DADOS):
         fluxo_tomtom_estradas_vicinais_faixa_5km.csv
     Colunas: id, rodovia, uf, municipio, lat, lon, velocidade_real_kmh,
     velocidade_livre_kmh, razao_fluidez, perda_pct, status_fluxo,
-    cor_badge, confianca.
+    confianca.
 
 VARIÁVEIS DE AMBIENTE:
     TOMTOM_API_KEY  (obrigatória) chave da TomTom Traffic API.
@@ -83,8 +82,6 @@ import argparse
 from pathlib import Path
 import geopandas as gpd
 import pandas as pd
-import numpy as np
-from shapely.geometry import Point, box
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _caminhos import PRODUCAO
@@ -109,10 +106,8 @@ except KeyError:
         "  bash:        export TOMTOM_API_KEY=\"<sua chave>\""
     )
 
-# Contexto SSL sem verificação de certificado.
+# Contexto SSL padrão (verifica o certificado e o nome do servidor).
 ctx = ssl.create_default_context()
-ctx.check_hostname = False
-ctx.verify_mode = ssl.CERT_NONE
 
 # ==============================================================================
 # ETAPA 3: FUNÇÕES DE CONSULTA À API DA TOMTOM
@@ -142,7 +137,7 @@ def get_tomtom_flow(lat, lon):
         with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             return data.get('flowSegmentData', {})
-    except Exception as e:
+    except Exception:
         return None
 
 # ==============================================================================
@@ -212,22 +207,20 @@ def processar_portas(tipo='federais'):
 
             if ratio < 0.70:
                 status = "Intenso / Retenção Severa"
-                cor = "#ef4444"
             elif ratio < 0.88:
                 status = "Moderado / Alerta de Fluidez"
-                cor = "#f59e0b"
             else:
                 status = "Fluidez Plena / Tráfego Livre"
-                cor = "#10b981"
 
             results.append({
                 'id': p_id, 'rodovia': p_rod, 'uf': p_uf, 'municipio': p_muni,
                 'lat': p_lat, 'lon': p_lon,
                 'velocidade_real_kmh': cur_speed, 'velocidade_livre_kmh': free_speed,
                 'razao_fluidez': round(ratio, 2), 'perda_pct': round(perda, 1),
-                'status_fluxo': status, 'cor_badge': cor, 'confianca': conf
+                'status_fluxo': status, 'confianca': conf
             })
-            print(f"  P{p_id:02d} | {p_rod[:15]:15s} | {p_muni[:20]:20s} -> Real: {cur_speed} km/h (Livre: {free_speed} km/h) [{status}]")
+            # id textual (ex.: 'MS-01') ou numérico: impresso como texto
+            print(f"  {str(p_id):>6s} | {p_rod[:15]:15s} | {p_muni[:20]:20s} -> Real: {cur_speed} km/h (Livre: {free_speed} km/h) [{status}]")
         else:
             # Sem resposta da API: valores estimados
             results.append({
@@ -235,7 +228,7 @@ def processar_portas(tipo='federais'):
                 'lat': p_lat, 'lon': p_lon,
                 'velocidade_real_kmh': 60, 'velocidade_livre_kmh': 60,
                 'razao_fluidez': 1.0, 'perda_pct': 0.0,
-                'status_fluxo': 'Fluidez Plena (Estimada)', 'cor_badge': '#10b981', 'confianca': 0.5
+                'status_fluxo': 'Fluidez Plena (Estimada)', 'confianca': 0.5
             })
 
     df_out = pd.DataFrame(results)

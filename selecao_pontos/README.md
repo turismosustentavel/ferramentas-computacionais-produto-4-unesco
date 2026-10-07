@@ -23,7 +23,7 @@ justificativa de cada um.
 | 4 | Monta o endereço completo de cada CNPJ | `cnpjs.csv` | `cnpjs_enderecos.csv` |
 | 5 | Amostra de 50% dos CNPJs (identificadores pares) | `cnpjs_enderecos.csv` | `cnpjs_enderecos_compressed.csv` |
 | 6 | Geocodifica os endereços (Google Geocoding API) | `cnpjs_enderecos_compressed.csv` | `cnpjs_georreferenciados.csv` |
-| 7 | Traça as rotas entre os pares origem-destino (TomTom Routing API) e guarda os vértices | `partida_chegada.csv` | `tomtom_routes.csv` |
+| 7 | Traça as rotas entre os pares origem-destino (TomTom Route Monitoring API) e guarda os vértices | `partida_chegada.csv` | `tomtom_routes.csv` |
 | 8 | Agrupa os vértices por DBSCAN (haversine) em cada município e ordena pela frequência | `tomtom_routes.csv` | `top100_clusters_per_city_r100.csv` |
 | 9 | Combina a frequência com uma base de pontos de tráfego, em raio de 50 m, com pesos iguais | `top100_clusters_per_city_r100.csv`, `traffic.csv` | `ranked_points.csv` |
 
@@ -37,6 +37,12 @@ justificativa de cada um.
   É uma medida de densidade de vértices, não do número de trajetos distintos que
   passam pelo ponto. O módulo `caderno_municipal/fluxos_p4.py` calcula as duas.
 
+As etapas 6 e 7 consultam serviços pagos. Se o arquivo que gravam já existe, a
+esteira o usa e pula a consulta; só consulta de novo com `P4_REFAZER_COLETAS=1`.
+Assim as etapas 8 e 9 rodam sem chave sobre os arquivos da coleta original, e
+uma execução não apaga essa coleta. O `partida_chegada.csv`, entrada da etapa 7,
+foi preparado fora da esteira; nenhuma etapa o gera.
+
 ## Onde ficam os arquivos
 
 A esteira lê e grava tudo numa única pasta de trabalho, indicada pela variável
@@ -46,15 +52,17 @@ arquivos estão organizados por etapa, dentro de
 
 | Subpasta | Arquivos |
 |---|---|
-| `raw/` | entradas: `acessos.csv`, `atrativos.csv`, `cnjps_dionisio.csv`, `cnpjs_municipios.csv` |
+| `raw/` | entradas: `acessos.csv` (a etapa 1 o lê com o nome `acessos_inicio.csv`), `atrativos.csv`, `cnjps_dionisio.csv`, `cnpjs_municipios.csv` |
 | `z_cleaned/` e `z_cleaned_merged/` | etapas 1 a 3 |
 | `z_final_addressed/` | etapas 4 e 5 |
 | `z_final_geocoded/` | etapa 6 e `partida_chegada.csv` |
 | `z_rotas_tomtom/` | etapa 7 |
 | `z_top_ranked/` | etapa 8 |
 
-O `exportar_camadas.py` roda na pasta `Seleção dos pontos para aferição/` e grava
-em `camadas_qgis/`.
+O `exportar_camadas.py` usa a mesma pasta de trabalho (`P4_SELECAO_PONTOS`). Procura
+cada entrada primeiro solta na pasta, como a esteira grava, e depois nas subpastas
+`final/z_top_ranked/` e `final/z_rotas_tomtom/` do acervo. Grava em `camadas_qgis/`,
+dentro da mesma pasta.
 
 ## Entradas
 
@@ -63,8 +71,10 @@ em `camadas_qgis/`.
 | `cnpjs_municipios.csv`, `cnjps_dionisio.csv` | Estabelecimentos das ACTs nos municípios do estudo | Cadastro Nacional da Pessoa Jurídica (Receita Federal) |
 | `atrativos.csv`, `acessos_inicio.csv` | Atrativos e acessos de cada município, com coordenadas | Levantamento da equipe |
 | `partida_chegada.csv` | Pares origem-destino: cada atrativo e o centro da área das ACTs do município | Construído a partir das bases acima |
-| `traffic.csv` | Pontos de tráfego (`lat`, `lon`, `traffic`) | Base auxiliar da etapa 9 |
-| `pontos_afericao_selecionados*.csv` | Pontos escolhidos, com justificativa | Decisão da equipe técnica |
+| `traffic.csv` | Pontos de tráfego (`lat`, `lon`, `traffic`) | Base auxiliar da etapa 9; origem não registrada |
+| `pontos_afericao_selecionados*.csv` | Pontos escolhidos, com justificativa (lido pelo exportador; sem `--csv`, o mais recente) | Decisão da equipe técnica |
+| `ranked_by_frequency.csv` | Agrupamentos ordenados pela frequência (o exportador o prefere ao `top100_…`, quando existe) | Saída anterior da seleção |
+| `atrativos_qualitativo_georeferenciado.csv` ou `atrativos_georeferenciados_limpo.csv` | Atrativos com a classificação do Produto 4 (camada 4 do exportador) | Levantamento da equipe |
 
 Nenhuma dessas bases é distribuída neste repositório.
 
@@ -74,10 +84,13 @@ Nenhuma dessas bases é distribuída neste repositório.
 |---|---|
 | `GOOGLE_MAPS_API_KEY` | 6 |
 | `TOMTOM_API_KEY` | 7 |
+| `P4_REFAZER_COLETAS=1` | 6 e 7: consulta de novo mesmo que o arquivo exista |
 
-As respostas da Google e da TomTom não são redistribuídas. Com chaves próprias, as
-etapas 6 e 7 geram novamente os arquivos, mas com o estado dos serviços na data da
-execução, que não é o da coleta original.
+As respostas da Google e da TomTom não são redistribuídas. Com chaves próprias e
+`P4_REFAZER_COLETAS=1`, as etapas 6 e 7 geram novamente os arquivos, mas com o
+estado dos serviços na data da execução, que não é o da coleta original. A chave só
+é pedida quando a etapa realmente consulta o serviço; se a Google recusar a chave
+ou a cota, a etapa 6 para sem gravar.
 
 ## O que não se reproduz por computador
 

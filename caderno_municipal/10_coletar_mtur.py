@@ -7,7 +7,7 @@ COLETA DOS DADOS ABERTOS DO MINISTERIO DO TURISMO
 Fecha as duas lacunas que as bases estaduais nao cobrem de forma uniforme:
 
   IGR e regiao turistica   -> Mapa do Turismo Brasileiro
-  Cadastur                 -> os prestadores publicados por categoria
+  CADASTUR                 -> os prestadores publicados por categoria
 
 Vantagem sobre as fontes estaduais: sao nacionais, entao cobrem PR, MS e SC no
 mesmo metodo e no mesmo ano - inclusive Dionisio Cerqueira, que nem o IPARDES

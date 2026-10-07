@@ -27,9 +27,14 @@ ETAPAS
          cnpjs_enderecos.csv -> cnpjs_enderecos_compressed.csv
     6. Geocodificacao dos enderecos (Google Geocoding API).
          cnpjs_enderecos_compressed.csv -> cnpjs_georreferenciados.csv
-    7. Rotas entre os pares origem-destino (TomTom Routing API); de cada rota
-       guardam-se os vertices (waypoints).
+    7. Rotas entre os pares origem-destino (TomTom Route Monitoring API,
+       endpoint /routemonitoring/3/routes); de cada rota guardam-se os
+       vertices (waypoints). O arquivo partida_chegada.csv e preparado fora
+       deste script.
          partida_chegada.csv -> tomtom_routes.csv
+       As etapas 6 e 7 consultam servicos pagos. Se o arquivo de saida da
+       etapa ja existir, ela e pulada e usa-se o arquivo existente; para
+       consultar de novo, defina P4_REFAZER_COLETAS=1.
     8. Agrupamento dos vertices por DBSCAN (metrica haversine), por
        municipio, e ordenacao pela frequencia (numero de vertices no grupo).
          tomtom_routes.csv -> top100_clusters_per_city_r100.csv
@@ -47,29 +52,59 @@ ENTRADAS (nao distribuidas)
                                         Federal, Cadastro Nacional da Pessoa
                                         Juridica)
     partida_chegada.csv                 pares origem-destino (atrativo e centro
-                                        da mancha de ACTs de cada municipio)
+                                        da area das ACTs de cada municipio);
+                                        preparado fora deste script, nenhuma
+                                        etapa o gera
     traffic.csv                         pontos de trafego (lat, lon, traffic)
 
 VARIAVEIS DE AMBIENTE
-    GOOGLE_MAPS_API_KEY   etapa 6
-    TOMTOM_API_KEY        etapa 7
+    GOOGLE_MAPS_API_KEY   etapa 6 (lida so quando a etapa roda)
+    TOMTOM_API_KEY        etapa 7 (lida so quando a etapa roda)
     P4_SELECAO_PONTOS     pasta de trabalho (opcional)
+    P4_REFAZER_COLETAS    com o valor 1, refaz as etapas 6 e 7 mesmo que os
+                          arquivos de saida ja existam (opcional)
 
-As respostas da Google e da TomTom nao sao redistribuidas; com chaves
-proprias, as etapas 6 e 7 geram novamente os arquivos, com o estado dos
-servicos na data da execucao.
+As respostas da Google e da TomTom nao sao redistribuidas. Sem
+P4_REFAZER_COLETAS=1, as etapas 6 e 7 so consultam os servicos quando o
+arquivo de saida ainda nao existe; assim, as etapas 8 e 9 rodam sem chaves
+sobre os arquivos ja gravados. Com chaves proprias e P4_REFAZER_COLETAS=1, as
+etapas 6 e 7 regravam os arquivos com o estado dos servicos na data da
+execucao, que nao e o da coleta original.
 
 COMO EXECUTAR
     python selecao_pontos/selecao_pontos_afericao.py
 ================================================================================
 """
 import os
+import time
 
-os.chdir(os.environ.get("P4_SELECAO_PONTOS", "."))
+import numpy as np
+import pandas as pd
+import requests
+from sklearn.cluster import DBSCAN
+from sklearn.neighbors import BallTree
+
+os.chdir(os.environ.get("P4_SELECAO_PONTOS") or ".")
+
+# Com P4_REFAZER_COLETAS=1, as etapas 6 e 7 consultam de novo os servicos
+# pagos mesmo que os arquivos de saida ja existam
+REFAZER_COLETAS = os.environ.get("P4_REFAZER_COLETAS") == "1"
+
+
+def ler_chave(nome, etapa):
+    # Le a chave de API so na etapa que a usa; sem ela, a esteira para
+    chave = os.environ.get(nome)
+    if not chave:
+        raise SystemExit(
+            f"Etapa {etapa}: defina a variavel de ambiente {nome} para "
+            f"consultar o servico, ou deixe na pasta de trabalho o arquivo "
+            f"de saida gravado numa execucao anterior (sem "
+            f"P4_REFAZER_COLETAS=1)."
+        )
+    return chave
+
 
 # separate coordinates from ACESSOS
-
-import pandas as pd
 
 # Read CSV
 df = pd.read_csv("acessos_inicio.csv", sep=';')
@@ -92,8 +127,6 @@ df.to_csv("acessos.csv", index=False)
 print(df.head())
 
 # merge cnpjs_dionisio & cnpjs_municipios
-
-import pandas as pd
 
 file1 = "cnpjs_municipios.csv"
 file2 = "cnjps_dionisio.csv"
@@ -174,8 +207,6 @@ print("Output:", output_file)
 
 # merge ACESSOS and ATRATIVOS
 
-import pandas as pd
-
 file1 = "atrativos.csv"
 file2 = "acessos.csv"
 
@@ -251,8 +282,6 @@ print("Output:", output_file)
 
 # Produce ADDRESS for CNPJs
 
-import pandas as pd
-
 input_file = "cnpjs.csv"
 output_file = "cnpjs_enderecos.csv"
 
@@ -303,8 +332,6 @@ print(df.head())
 
 # DOWNSAMPLE: keep 50% of the addresses (even ids)
 
-import pandas as pd
-
 input_file = "cnpjs_enderecos.csv"
 output_file = "cnpjs_enderecos_compressed.csv"
 
@@ -320,25 +347,33 @@ print("Original rows:", len(df))
 print("Compressed rows:", len(compressed))
 print("Output:", output_file)
 
-import requests
-import pandas as pd
+# ============================================================
+# ETAPA 6 | GEOCODIFICACAO DOS ENDERECOS (Google Geocoding API)
+# Servico pago: a etapa e pulada se o arquivo de saida ja existir,
+# salvo com P4_REFAZER_COLETAS=1.
+# ============================================================
 
-API_KEY = os.environ["GOOGLE_MAPS_API_KEY"]
-URL = "https://maps.googleapis.com/maps/api/geocode/json?address="
+URL = "https://maps.googleapis.com/maps/api/geocode/json"
+GEOCODED_CSV = "cnpjs_georreferenciados.csv"
 
-def api_call(place, url=URL):
+# Status da Google que indicam problema de chave, cota ou consulta: a
+# etapa para, em vez de registrar o endereco como nao encontrado
+STATUS_QUE_INTERROMPEM = (
+    "REQUEST_DENIED",
+    "OVER_QUERY_LIMIT",
+    "INVALID_REQUEST"
+)
 
-    full_url = (
-        f"{url}"
-        f"{place}"
-    )
+def api_call(place, chave, url=URL):
 
+    # O endereco vai por params, que o requests codifica na URL
     params = {
-        "key": API_KEY
+        "address": place,
+        "key": chave
     }
 
     response = requests.get(
-        full_url,
+        url,
         params=params,
         timeout=30
     )
@@ -346,6 +381,16 @@ def api_call(place, url=URL):
     response.raise_for_status()
 
     data = response.json()
+
+    status = data.get("status")
+
+    # SystemExit nao e capturado pelo "except Exception" do laco abaixo
+    if status in STATUS_QUE_INTERROMPEM:
+        raise SystemExit(
+            f"Etapa 6 interrompida: a Google respondeu {status} "
+            f"({data.get('error_message', 'sem mensagem')}). "
+            f"O arquivo {GEOCODED_CSV} nao foi gravado."
+        )
 
     results = data.get("results", [])
 
@@ -362,300 +407,391 @@ def api_call(place, url=URL):
 
     return None
 
-import pandas as pd
+if os.path.exists(GEOCODED_CSV) and not REFAZER_COLETAS:
 
-df = pd.read_csv(
-    "cnpjs_enderecos_compressed.csv")
+    print(
+        f"Etapa 6 pulada: usado o arquivo existente {GEOCODED_CSV} "
+        f"(P4_REFAZER_COLETAS=1 refaz a geocodificacao)."
+    )
 
-# Create columns if they don't exist
-df["latitude"] = None
-df["longitude"] = None
+else:
 
-# Iterate over rows
-for idx, row in df.iterrows():
+    CHAVE_GOOGLE = ler_chave("GOOGLE_MAPS_API_KEY", 6)
 
-    endereco = str(row["endereco"]).strip()
-    query = f"{endereco}, Brazil"
+    df = pd.read_csv(
+        "cnpjs_enderecos_compressed.csv")
 
-    try:
+    # Create columns if they don't exist
+    df["latitude"] = None
+    df["longitude"] = None
 
-        result = api_call(query)
+    # Iterate over rows
+    for idx, row in df.iterrows():
 
+        endereco = str(row["endereco"]).strip()
+        query = f"{endereco}, Brazil"
 
-        if result:
+        try:
 
-            df.at[idx, "latitude"] = result["lat"]
-            df.at[idx, "longitude"] = result["lon"]
-
-            print(f"[OK] {query} -> {result['lat']}, {result['lon']}")
-
-        else:
-            print(f"[NOT FOUND] {query}")
-
-    except Exception as e:
-        print(f"[ERROR] {query} -> {e}")
-
-# Save CSV
-df.to_csv(
-    "cnpjs_georreferenciados.csv",
-    sep=";",
-    index=False,
-    encoding="utf-8-sig"
-)
-
-print("CSV saved to cnpjs_georreferenciados.csv")
-
-# Generate Routes
+            result = api_call(query, CHAVE_GOOGLE)
 
 
-import requests
-import pandas as pd
-import time
+            if result:
+
+                df.at[idx, "latitude"] = result["lat"]
+                df.at[idx, "longitude"] = result["lon"]
+
+                print(f"[OK] {query} -> {result['lat']}, {result['lon']}")
+
+            else:
+                print(f"[NOT FOUND] {query}")
+
+        except Exception as e:
+            print(f"[ERROR] {query} -> {e}")
+
+    # Save CSV
+    df.to_csv(
+        GEOCODED_CSV,
+        sep=";",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    print(f"CSV saved to {GEOCODED_CSV}")
+
+# ============================================================
+# ETAPA 7 | ROTAS ENTRE OS PARES ORIGEM-DESTINO
+# (TomTom Route Monitoring API, endpoint /routemonitoring/3/routes)
+# Servico pago: a etapa e pulada se o arquivo de saida ja existir,
+# salvo com P4_REFAZER_COLETAS=1. O arquivo partida_chegada.csv e
+# preparado fora deste script.
+# ============================================================
 
 # ==========================================================
 # CONFIGURATION
 # ==========================================================
 
-API_KEY = os.environ["TOMTOM_API_KEY"]
 INPUT_CSV = "partida_chegada.csv"
 OUTPUT_CSV = "tomtom_routes.csv"
 
-# ==========================================================
-# READ CSV
-# ==========================================================
-
-df_routes = pd.read_csv(
-    INPUT_CSV,
-    dtype={
-        "id": str,
-        "municipio": str,
-        "nome": str,
-        "latitude_origem": float,
-        "longitude_origem": float,
-        "latitude_destino": float,
-        "longitude_destino": float
-    }
-)
-
-# Remove whitespace from column names
-df_routes.columns = df_routes.columns.str.strip()
-
-required_columns = [
-    "id",
-    "municipio",
-    "nome",
-    "latitude_origem",
-    "longitude_origem",
-    "latitude_destino",
-    "longitude_destino"
-]
-
-# Check that all required columns exist
-missing_columns = [
-    col for col in required_columns
-    if col not in df_routes.columns
-]
-
-if missing_columns:
-    raise ValueError(
-        f"Missing columns: {missing_columns}"
-    )
-
-print("Input CSV loaded.")
-print("Number of routes:", len(df_routes))
-
-
-# ==========================================================
-# STORAGE
-# ==========================================================
-
-rows = []
-
-
-# ==========================================================
-# PROCESS EACH CSV ROW
-# ==========================================================
-
-for index, route in df_routes.iterrows():
-
-    route_id = route["id"]
-    municipio = route["municipio"]
-    nome = route["nome"]
-
-    origin_lat = route["latitude_origem"]
-    origin_lon = route["longitude_origem"]
-
-    destination_lat = route["latitude_destino"]
-    destination_lon = route["longitude_destino"]
-
-
-    print("\n" + "=" * 70)
-    print(
-        f"Processing {index + 1}/{len(df_routes)}"
-    )
-    print("=" * 70)
-
-    print(f"ID:           {route_id}")
-    print(f"Municipio:    {municipio}")
-    print(f"Nome:         {nome}")
+if os.path.exists(OUTPUT_CSV) and not REFAZER_COLETAS:
 
     print(
-        f"Origin:       "
-        f"{origin_lat}, {origin_lon}"
+        f"Etapa 7 pulada: usado o arquivo existente {OUTPUT_CSV} "
+        f"(P4_REFAZER_COLETAS=1 refaz as rotas)."
     )
 
-    print(
-        f"Destination:  "
-        f"{destination_lat}, {destination_lon}"
+else:
+
+    CHAVE_TOMTOM = ler_chave("TOMTOM_API_KEY", 7)
+
+    # ==========================================================
+    # READ CSV
+    # ==========================================================
+
+    df_routes = pd.read_csv(
+        INPUT_CSV,
+        dtype={
+            "id": str,
+            "municipio": str,
+            "nome": str,
+            "latitude_origem": float,
+            "longitude_origem": float,
+            "latitude_destino": float,
+            "longitude_destino": float
+        }
     )
 
+    # Remove whitespace from column names
+    df_routes.columns = df_routes.columns.str.strip()
 
-    # ======================================================
-    # 1. CREATE ROUTE
-    # ======================================================
+    required_columns = [
+        "id",
+        "municipio",
+        "nome",
+        "latitude_origem",
+        "longitude_origem",
+        "latitude_destino",
+        "longitude_destino"
+    ]
 
-    create_url = (
-        "https://api.tomtom.com/routemonitoring/3/routes"
-    )
+    # Check that all required columns exist
+    missing_columns = [
+        col for col in required_columns
+        if col not in df_routes.columns
+    ]
 
-    payload = {
-        "name": f"route-{route_id}",
-        "pathPoints": [
-            {
-                "latitude": origin_lat,
-                "longitude": origin_lon
+    if missing_columns:
+        raise ValueError(
+            f"Missing columns: {missing_columns}"
+        )
+
+    print("Input CSV loaded.")
+    print("Number of routes:", len(df_routes))
+
+
+    # ==========================================================
+    # STORAGE
+    # ==========================================================
+
+    rows = []
+
+
+    # ==========================================================
+    # PROCESS EACH CSV ROW
+    # ==========================================================
+
+    for index, route in df_routes.iterrows():
+
+        route_id = route["id"]
+        municipio = route["municipio"]
+        nome = route["nome"]
+
+        origin_lat = route["latitude_origem"]
+        origin_lon = route["longitude_origem"]
+
+        destination_lat = route["latitude_destino"]
+        destination_lon = route["longitude_destino"]
+
+
+        print("\n" + "=" * 70)
+        print(
+            f"Processing {index + 1}/{len(df_routes)}"
+        )
+        print("=" * 70)
+
+        print(f"ID:           {route_id}")
+        print(f"Municipio:    {municipio}")
+        print(f"Nome:         {nome}")
+
+        print(
+            f"Origin:       "
+            f"{origin_lat}, {origin_lon}"
+        )
+
+        print(
+            f"Destination:  "
+            f"{destination_lat}, {destination_lon}"
+        )
+
+
+        # ======================================================
+        # 1. CREATE ROUTE
+        # ======================================================
+
+        create_url = (
+            "https://api.tomtom.com/routemonitoring/3/routes"
+        )
+
+        payload = {
+            "name": f"route-{route_id}",
+            "pathPoints": [
+                {
+                    "latitude": origin_lat,
+                    "longitude": origin_lon
+                },
+                {
+                    "latitude": destination_lat,
+                    "longitude": destination_lon
+                }
+            ]
+        }
+
+        response = requests.post(
+            create_url,
+            params={"key": CHAVE_TOMTOM},
+            headers={
+                "Content-Type": "application/json"
             },
-            {
-                "latitude": destination_lat,
-                "longitude": destination_lon
-            }
-        ]
-    }
-
-    response = requests.post(
-        create_url,
-        params={"key": API_KEY},
-        headers={
-            "Content-Type": "application/json"
-        },
-        json=payload
-    )
-
-    print(
-        "Create route:",
-        response.status_code
-    )
-
-
-    if response.status_code not in [200, 201]:
-
-        print("Create failed:")
-        print(response.text)
-
-        continue
-
-
-    data = response.json()
-
-    tomtom_route_id = data["routeId"]
-
-    print(
-        "TomTom routeId:",
-        tomtom_route_id
-    )
-
-
-    # ======================================================
-    # 2. POLL ROUTE DETAILS
-    # ======================================================
-
-    details_url = (
-        f"https://api.tomtom.com/routemonitoring/3/routes/"
-        f"{tomtom_route_id}/details"
-    )
-
-    details = None
-    detailed_segments = []
-
-    max_attempts = 15
-    wait_seconds = 2
-
-    for attempt in range(
-        1,
-        max_attempts + 1
-    ):
-
-        print(
-            f"Getting details "
-            f"(attempt {attempt}/{max_attempts})..."
-        )
-
-        response = requests.get(
-            details_url,
-            params={"key": API_KEY}
+            json=payload
         )
 
         print(
-            "Status:",
+            "Create route:",
             response.status_code
         )
 
 
-        if response.status_code != 200:
+        if response.status_code not in [200, 201]:
 
+            print("Create failed:")
             print(response.text)
-
-            time.sleep(wait_seconds)
 
             continue
 
 
-        details = response.json()
+        data = response.json()
 
-        detailed_segments = details.get(
-            "detailedSegments",
-            []
-        )
+        tomtom_route_id = data["routeId"]
 
         print(
-            "Number of segments:",
-            len(detailed_segments)
+            "TomTom routeId:",
+            tomtom_route_id
         )
 
 
-        # Route is ready
-        if len(detailed_segments) > 0:
+        # ======================================================
+        # 2. POLL ROUTE DETAILS
+        # ======================================================
+
+        details_url = (
+            f"https://api.tomtom.com/routemonitoring/3/routes/"
+            f"{tomtom_route_id}/details"
+        )
+
+        details = None
+        detailed_segments = []
+
+        max_attempts = 15
+        wait_seconds = 2
+
+        for attempt in range(
+            1,
+            max_attempts + 1
+        ):
 
             print(
-                "Route geometry is ready."
+                f"Getting details "
+                f"(attempt {attempt}/{max_attempts})..."
             )
 
-            break
-
-
-        # Route isn't ready yet
-        if attempt < max_attempts:
+            response = requests.get(
+                details_url,
+                params={"key": CHAVE_TOMTOM}
+            )
 
             print(
-                f"No segments yet. "
-                f"Waiting {wait_seconds} seconds..."
+                "Status:",
+                response.status_code
             )
 
-            time.sleep(wait_seconds)
+
+            if response.status_code != 200:
+
+                print(response.text)
+
+                time.sleep(wait_seconds)
+
+                continue
 
 
-    # ======================================================
-    # 3. CHECK ROUTE
-    # ======================================================
+            details = response.json()
 
-    if not detailed_segments:
+            detailed_segments = details.get(
+                "detailedSegments",
+                []
+            )
+
+            print(
+                "Number of segments:",
+                len(detailed_segments)
+            )
+
+
+            # Route is ready
+            if len(detailed_segments) > 0:
+
+                print(
+                    "Route geometry is ready."
+                )
+
+                break
+
+
+            # Route isn't ready yet
+            if attempt < max_attempts:
+
+                print(
+                    f"No segments yet. "
+                    f"Waiting {wait_seconds} seconds..."
+                )
+
+                time.sleep(wait_seconds)
+
+
+        # ======================================================
+        # 3. CHECK ROUTE
+        # ======================================================
+
+        if not detailed_segments:
+
+            print(
+                f"WARNING: Route {route_id} "
+                f"returned no detailed segments."
+            )
+
+            # Delete route even if it failed
+            delete_url = (
+                f"https://api.tomtom.com/routemonitoring/3/routes/"
+                f"{tomtom_route_id}"
+            )
+
+            delete_response = requests.delete(
+                delete_url,
+                params={"key": CHAVE_TOMTOM}
+            )
+
+            print(
+                "Delete route:",
+                delete_response.status_code
+            )
+
+            continue
+
+
+        # ======================================================
+        # 4. EXTRACT COMPLETE SEGMENT SHAPES
+        # ======================================================
+
+        route_point_count = 0
+
+        for segment in detailed_segments:
+
+            segment_id = segment.get(
+                "segmentId"
+            )
+
+            shape = segment.get(
+                "shape",
+                []
+            )
+
+            print(
+                f"Segment {segment_id}: "
+                f"{len(shape)} points"
+            )
+
+
+            # Save EVERY coordinate
+            for point in shape:
+
+                rows.append({
+
+                    # Original CSV ID
+                    "id": route_id,
+
+                    # Metadata from original CSV
+                    "municipio": municipio,
+                    "nome": nome,
+
+                    # Route geometry
+                    "latitude": point["latitude"],
+                    "longitude": point["longitude"]
+                })
+
+                route_point_count += 1
+
 
         print(
-            f"WARNING: Route {route_id} "
-            f"returned no detailed segments."
+            f"Total points extracted: "
+            f"{route_point_count}"
         )
 
-        # Delete route even if it failed
+
+        # ======================================================
+        # 5. DELETE TOMTOM ROUTE
+        # ======================================================
+
         delete_url = (
             f"https://api.tomtom.com/routemonitoring/3/routes/"
             f"{tomtom_route_id}"
@@ -663,7 +799,7 @@ for index, route in df_routes.iterrows():
 
         delete_response = requests.delete(
             delete_url,
-            params={"key": API_KEY}
+            params={"key": CHAVE_TOMTOM}
         )
 
         print(
@@ -671,166 +807,89 @@ for index, route in df_routes.iterrows():
             delete_response.status_code
         )
 
-        continue
+
+        if delete_response.status_code not in [
+            200,
+            202,
+            204
+        ]:
+
+            print(
+                "WARNING: Could not delete route:"
+            )
+
+            print(
+                delete_response.text
+            )
 
 
-    # ======================================================
-    # 4. EXTRACT COMPLETE SEGMENT SHAPES
-    # ======================================================
+        # ======================================================
+        # DELAY
+        # ======================================================
 
-    route_point_count = 0
+        time.sleep(1)
 
-    for segment in detailed_segments:
 
-        segment_id = segment.get(
-            "segmentId"
-        )
+    # ==========================================================
+    # 6. CREATE OUTPUT DATAFRAME
+    # ==========================================================
 
-        shape = segment.get(
-            "shape",
-            []
-        )
+    df_output = pd.DataFrame(
+        rows,
+        columns=[
+            "id",
+            "municipio",
+            "nome",
+            "latitude",
+            "longitude"
+        ]
+    )
+
+
+    # ==========================================================
+    # 7. SAVE CSV
+    # ==========================================================
+
+    df_output.to_csv(
+        OUTPUT_CSV,
+        index=False
+    )
+
+
+    # ==========================================================
+    # 8. SUMMARY
+    # ==========================================================
+
+    print("\n")
+    print("=" * 70)
+    print("DONE")
+    print("=" * 70)
+
+    print(
+        "Total points:",
+        len(df_output)
+    )
+
+    if len(df_output) > 0:
 
         print(
-            f"Segment {segment_id}: "
-            f"{len(shape)} points"
+            "Routes with points:",
+            df_output["id"].nunique()
         )
 
-
-        # Save EVERY coordinate
-        for point in shape:
-
-            rows.append({
-
-                # Original CSV ID
-                "id": route_id,
-
-                # Metadata from original CSV
-                "municipio": municipio,
-                "nome": nome,
-
-                # Route geometry
-                "latitude": point["latitude"],
-                "longitude": point["longitude"]
-            })
-
-            route_point_count += 1
-
-
-    print(
-        f"Total points extracted: "
-        f"{route_point_count}"
-    )
-
-
-    # ======================================================
-    # 5. DELETE TOMTOM ROUTE
-    # ======================================================
-
-    delete_url = (
-        f"https://api.tomtom.com/routemonitoring/3/routes/"
-        f"{tomtom_route_id}"
-    )
-
-    delete_response = requests.delete(
-        delete_url,
-        params={"key": API_KEY}
-    )
-
-    print(
-        "Delete route:",
-        delete_response.status_code
-    )
-
-
-    if delete_response.status_code not in [
-        200,
-        202,
-        204
-    ]:
+        print("\nPoints per route:")
 
         print(
-            "WARNING: Could not delete route:"
+            df_output.groupby("id").size()
         )
 
-        print(
-            delete_response.text
-        )
-
-
-    # ======================================================
-    # DELAY
-    # ======================================================
-
-    time.sleep(1)
-
-
-# ==========================================================
-# 6. CREATE OUTPUT DATAFRAME
-# ==========================================================
-
-df_output = pd.DataFrame(
-    rows,
-    columns=[
-        "id",
-        "municipio",
-        "nome",
-        "latitude",
-        "longitude"
-    ]
-)
-
-
-# ==========================================================
-# 7. SAVE CSV
-# ==========================================================
-
-df_output.to_csv(
-    OUTPUT_CSV,
-    index=False
-)
-
-
-# ==========================================================
-# 8. SUMMARY
-# ==========================================================
-
-print("\n")
-print("=" * 70)
-print("DONE")
-print("=" * 70)
-
-print(
-    "Total points:",
-    len(df_output)
-)
-
-if len(df_output) > 0:
-
     print(
-        "Routes with points:",
-        df_output["id"].nunique()
+        "\nOutput:",
+        OUTPUT_CSV
     )
 
-    print("\nPoints per route:")
-
-    print(
-        df_output.groupby("id").size()
-    )
-
-print(
-    "\nOutput:",
-    OUTPUT_CSV
-)
-
-# CLUSTER AND RANK TOP 20 MOST FREQUENT POINTS PER CITY
-
-
-import pandas as pd
-import numpy as np
-
-from sklearn.cluster import DBSCAN
-from sklearn.metrics import pairwise_distances
+# ETAPA 8 | agrupa os vertices das rotas e ordena, por municipio, os
+# TOP_N = 100 agrupamentos mais frequentes
 
 
 # ============================================================
@@ -840,8 +899,7 @@ from sklearn.metrics import pairwise_distances
 INPUT_CSV = "tomtom_routes.csv"
 OUTPUT_CSV = "top100_clusters_per_city_r100.csv"
 
-# Radius used to define a spatial cluster
-# 50 meters is a good starting point for street-level data.
+# Raio que define um agrupamento espacial: EPS_METERS = 100 metros
 EPS_METERS = 100
 
 # Maximum number of clusters/points to retain per municipality
@@ -1089,9 +1147,7 @@ print(
     OUTPUT_CSV
 )
 
-import pandas as pd
-import numpy as np
-from sklearn.neighbors import BallTree
+# ETAPA 9 | combina a frequencia com os pontos de trafego
 
 
 # ============================================================

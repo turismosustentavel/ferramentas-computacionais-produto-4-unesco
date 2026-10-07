@@ -4,9 +4,8 @@ O que o visitante encontra e o que nao encontra.
 
 As fichas de campo registram, alem das notas de 1 a 5, uma longa lista de
 itens de sim/nao: existe CAT? ha piso tatil? o ponto de onibus informa o
-itinerario? E esse material que sustenta a secao de gargalos, e ate aqui ele
-so aparecia nas fichas individuais, um ponto por vez. Reunido num quadro
-unico, ele mostra o que falta em TODOS os pontos — que e a afirmacao forte.
+itinerario? Este modulo reune esses itens numa grade item x ponto, que mostra
+o que falta em cada ponto e o que falta em TODOS os pontos.
 
 Cada formulario (Geral, Rodoviaria, Aeroporto, Aduana) nomeia os itens a sua
 maneira. `TEMAS` reune os nomes equivalentes sob uma linha so; o que o
@@ -70,9 +69,8 @@ CHEGADA = [
 ADUANA = [
     ("Orientação de quem atravessa", [
         # O CAT é item do Termo de Referência e por isso consta de todos os
-        # quadros de ponto de chegada, mesmo repetindo o que a grade geral de
-        # terminais já mostra: quem lê um quadro isolado precisa ver ali se o
-        # ponto tem atendimento ao turista.
+        # vocabulários de ponto de chegada (CHEGADA, ADUANA, RODOVIARIA,
+        # AEROPORTO), ainda que repita a linha da grade geral de terminais.
         ("Centro de Atendimento ao Turista", ["cat"]),
         ("Sinalização direcional", ["sinalização direcional (indicação de "
                                     "locais)"]),

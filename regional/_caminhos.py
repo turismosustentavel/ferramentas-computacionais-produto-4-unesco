@@ -19,9 +19,6 @@ RAIZ DOS DADOS:
         <P4_DADOS>/
             Entregas/Produto 4/                    -> ENTREGAS
                 produção/                          -> PRODUCAO
-                    01_limite_oficial_faixa_fronteira_150km_ibge_shp/
-                    02_malha_rodoviaria_nacional_dnit_snv_shp/
-                    03_malha_rodoviaria_pavimentacao_dnit_cide_shp/
                     05_telemetria_velocidades_reais_tomtom/
                     08_transporte_coletivo_rodoviarias_clickbus/
                     09_aviacao_rotas_e_aeroportos_anac/
@@ -46,10 +43,10 @@ VARIÁVEIS DE AMBIENTE:
 import os
 from pathlib import Path
 
-RAIZ = Path(os.environ.get(
-    "P4_DADOS", Path(__file__).resolve().parents[1] / "dados"))
+RAIZ = Path(os.environ.get("P4_DADOS")
+            or Path(__file__).resolve().parents[1] / "dados")
 
-# Pasta de entregas do Produto 4 (contém caches OSM na raiz e a pasta "produção").
+# Pasta de entregas do Produto 4 (contém a pasta "produção").
 ENTREGAS = RAIZ / "Entregas" / "Produto 4"
 
 # Pasta de produção: camadas de entrada, saídas intermediárias e saídas finais.

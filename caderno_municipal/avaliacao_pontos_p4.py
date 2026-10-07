@@ -17,10 +17,11 @@ PRODUTOS
         cobertura, manutenção, faixas, sinalização de trânsito, fluxo e
         tipos de fluxo)
     metricas_matrizes_<slug>.json
-        grade        uma linha por ponto: número, nome abreviado (42
-                     caracteres) e nome completo (200 caracteres) por
-                     comum.rotulo_curto, grupo, formulário, número de
-                     avaliações, média por dimensão e por bloco (duas casas)
+        grade        uma linha por ponto: número, nome curto (`nome`, até 42
+                     caracteres) e nome completo (`nome_texto`, até 200
+                     caracteres) por comum.rotulo_curto, grupo, formulário,
+                     número de avaliações, média por dimensão e por bloco
+                     (duas casas)
         chegada, interna
                      por grupo (null quando o grupo não tem ponto): número
                      de pontos, colunas comparadas e tipo de coluna; média
@@ -129,7 +130,8 @@ DIMENSOES = [
     ("Filas", ("fila", "organizac", "controle de acesso", "espera")),
 ]
 
-# Tamanho do nome do ponto: abreviado e completo (comum.rotulo_curto).
+# Tamanho máximo do nome do ponto: curto (`nome`) e completo (`nome_texto`),
+# por comum.rotulo_curto.
 NOME_CURTO, NOME_COMPLETO = 42, 200
 # Abaixo desta média o registro fica abaixo de "regular" (3).
 LIMIAR_REGULAR = 2.5

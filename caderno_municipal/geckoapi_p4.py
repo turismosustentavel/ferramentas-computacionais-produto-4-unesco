@@ -15,10 +15,23 @@ e UF de origem, cidade e UF de destino, data. Um credito por requisicao.
         variavel de ambiente GECKOAPI_KEY, ou GECKOAPI_KEYS com mais de uma
         chave separada por virgula. Nunca em arquivo do projeto.
 
+    DATA
+        variavel de ambiente GECKOAPI_DATA, no formato AAAA-MM-DD. Sem ela,
+        vale 2026-09-30, a data da coleta guardada no cache, e a execucao se
+        reproduz a partir dele. Data ja passada so se le do cache: se uma
+        consulta para ela precisar ir a API, a execucao para, porque a
+        resposta viria vazia e seria gravada como ausencia de oferta.
+
     ORCAMENTO
         `totalResults` ja traz o numero de partidas do dia, e a primeira
         pagina traz vinte delas. Paginar custaria outro credito para
         detalhar partidas que nao mudam a leitura: uma pagina por par.
+
+SAIDA
+    02_Dados_Municipais/oferta_clickbus/consulta_geckoapi_<slug>.json
+        resumo por destino para a data da coleta. Nao e o registro
+        oferta_clickbus_<slug>.json lido por indicadores_municipais_p4, que
+        traz mais de uma data e os grupos de destinos e nao e gerado aqui.
 
 USO
     python geckoapi_p4.py --plano          so imprime o que seria gasto
@@ -49,9 +62,31 @@ _ATUAL = {"i": 0}
 CACHE = DIR_DADOS / "cache" / "geckoapi"
 SAIDA = DIR_DADOS / "oferta_clickbus"
 
-# Uma quarta-feira: dia util tipico, longe o bastante para a grade estar
-# publicada e perto o bastante para nao cair em ferias ou feriado.
-DIA = date(2026, 9, 30)
+# Data da coleta (GECKOAPI_DATA, AAAA-MM-DD). O padrao e a da coleta guardada
+# no cache, uma quarta-feira: dia util tipico, longe o bastante para a grade
+# estar publicada e perto o bastante para nao cair em ferias ou feriado.
+DIA_PADRAO = "2026-09-30"
+
+
+def _dia_da_coleta() -> date:
+    bruto = (os.environ.get("GECKOAPI_DATA") or DIA_PADRAO).strip()
+    try:
+        return date.fromisoformat(bruto)
+    except ValueError:
+        raise SystemExit("GECKOAPI_DATA deve estar no formato AAAA-MM-DD "
+                         f"(recebido: {bruto!r})") from None
+
+
+DIA = _dia_da_coleta()
+
+
+def _data_passada(dia: date) -> str:
+    """Mensagem para a consulta fora do cache numa data que já passou."""
+    return (f"A data da coleta ({dia.isoformat()}) já passou e a consulta não "
+            "está no cache: a API devolveria a listagem vazia, gravada como "
+            "ausência de oferta. Defina GECKOAPI_DATA (AAAA-MM-DD) com uma "
+            "data de hoje em diante, ou restaure o cache dessa data.")
+
 
 # Onde a ANTT nao alcanca. Para Bonito e Porto Murtinho, que nao tem
 # nenhuma linha interestadual regulada, os destinos vem dos corredores
@@ -79,12 +114,6 @@ def creditos(chave=None):
     return r.json() if r.status_code == 200 else {"erro": r.status_code}
 
 
-def saldo_total():
-    """O saldo de cada conta, e a soma."""
-    por = {c[-6:]: (creditos(c).get("currentCredits") or 0) for c in CHAVES}
-    return {"por_chave": por, "total": sum(por.values())}
-
-
 def sem_acento(s: str) -> str:
     t = unicodedata.normalize("NFKD", str(s))
     return "".join(c for c in t if not unicodedata.combining(c))
@@ -101,6 +130,9 @@ def consultar(origem, uf_o, destino, uf_d, dia=DIA, forcar=False):
     p = _arq(origem, uf_o, destino, uf_d, dia.isoformat())
     if p.exists() and not forcar:
         return json.loads(p.read_text("utf-8")), True
+    if dia < date.today():
+        raise RuntimeError(f"{origem}/{uf_o} → {destino}/{uf_d}: "
+                           + _data_passada(dia))
     if not CHAVES:
         raise RuntimeError("defina GECKOAPI_KEYS no ambiente")
     corpo = {"target": "clickbus.com.br", "type": "plp",
@@ -133,12 +165,12 @@ def consultar(origem, uf_o, destino, uf_d, dia=DIA, forcar=False):
     # 402 é saldo esgotado: a conta seguinte assume e a consulta se repete
     while r.status_code == 402 and _ATUAL["i"] + 1 < len(CHAVES):
         _ATUAL["i"] += 1
-        print(f"   saldo esgotado; agora na chave ...{chave_atual()[-6:]}",
-              flush=True)
+        print(f"   saldo esgotado; agora na chave {_ATUAL['i'] + 1} de "
+              f"{len(CHAVES)}", flush=True)
         r = _pede()
     # 5xx é falha do provedor, e o crédito é estornado. Insistir vale a pena:
     # três das treze consultas de Foz do Iguaçu voltaram 502 na primeira
-    # tentativa, e tratá-las como ausência de oferta seria escrever que
+    # tentativa, e tratá-las como ausência de oferta seria registrar que
     # Curitiba não tem ônibus para lá.
     for espera in (8, 20, 45):
         if r.status_code < 500:
@@ -345,7 +377,7 @@ def coletar(slugs, quantos=5, pausa=2.0):
                   + (f", de R$ {r['preco_min']:.2f}"
                      if r.get("preco_min") else "")
                   + ("  [cache]" if do_cache else ""), flush=True)
-        (SAIDA / f"oferta_clickbus_{slug}.json").write_text(
+        (SAIDA / f"consulta_geckoapi_{slug}.json").write_text(
             json.dumps(saida, ensure_ascii=False, indent=1), "utf-8")
     return gasto
 
@@ -369,6 +401,9 @@ if __name__ == "__main__":
               + " · ".join(f"{n}/{u}" for n, u in destinos(s, quantos)))
     if "--plano" in sys.argv:
         raise SystemExit(0)
+    if novos and DIA < date.today():
+        raise SystemExit(f"{len(novos)} consultas fora do cache. "
+                         + _data_passada(DIA))
     print(f"\nsaldo antes: {creditos().get('currentCredits')}")
     g = coletar(alvos, quantos)
     print(f"\ngastos: {g} créditos · saldo: "

@@ -50,8 +50,6 @@ import os
 import sys
 from pathlib import Path
 import geopandas as gpd
-import pandas as pd
-import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _caminhos import PRODUCAO
@@ -65,15 +63,15 @@ prod_dir = str(PRODUCAO)
 air_folder = os.path.join(prod_dir, "09_aviacao_rotas_e_aeroportos_anac")
 p_air = os.path.join(air_folder, "malha_rotas_aereas_regulares_anac.shp")
 
-# Aeroportos de destino na Faixa de Fronteira (código ICAO). Apenas o campo
-# 'name' entra na tabela de saída; os demais são metadados de referência.
+# Aeroportos de destino na Faixa de Fronteira (código ICAO) e o nome que
+# entra no campo 'aeroporto' da tabela de saída.
 dest_airports = {
-    'SBFI': {'name': 'Foz do Iguaçu (IGU)', 'city': 'Foz do Iguaçu', 'lat': -25.5960, 'lon': -54.4872, 'offset': (12, -18)},
-    'SBCG': {'name': 'Campo Grande (CGR)', 'city': 'Campo Grande', 'lat': -20.4686, 'lon': -54.6725, 'offset': (12, 10)},
-    'SBDB': {'name': 'Bonito (BYO)', 'city': 'Bonito', 'lat': -21.2464, 'lon': -56.4528, 'offset': (12, 8)},
-    'SBCR': {'name': 'Corumbá (CMG)', 'city': 'Corumbá', 'lat': -19.0119, 'lon': -57.6714, 'offset': (12, 8)},
-    'SBPP': {'name': 'Ponta Porã (PMG)', 'city': 'Ponta Porã', 'lat': -22.5497, 'lon': -55.7031, 'offset': (-140, -18)},
-    'SSGY': {'name': 'Guaíra (GGY)', 'city': 'Guaíra', 'lat': -24.0647, 'lon': -54.2008, 'offset': (12, 8)}
+    'SBFI': {'name': 'Foz do Iguaçu (IGU)'},
+    'SBCG': {'name': 'Campo Grande (CGR)'},
+    'SBDB': {'name': 'Bonito (BYO)'},
+    'SBCR': {'name': 'Corumbá (CMG)'},
+    'SBPP': {'name': 'Ponta Porã (PMG)'},
+    'SSGY': {'name': 'Guaíra (GGY)'}
 }
 
 # ==============================================================================
@@ -106,7 +104,7 @@ def processar_estatisticas_aviacao():
 # ETAPA 4: EXECUÇÃO PRINCIPAL
 # ==============================================================================
 def main():
-    gdf_air = processar_estatisticas_aviacao()
+    processar_estatisticas_aviacao()
     print("\n Pipeline de Aviação Comercial concluído com êxito!")
 
 if __name__ == '__main__':

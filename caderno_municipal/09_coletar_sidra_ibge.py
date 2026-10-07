@@ -38,7 +38,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from comum import ACERVO, MUNICIPIOS, POR_CODIGO  # noqa: E402
+from comum import ACERVO, MUNICIPIOS  # noqa: E402
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
@@ -90,7 +90,7 @@ def buscar(url: str, tentativas: int = 3):
             if resp.headers.get("Content-Encoding") == "gzip":
                 raw = gzip.decompress(raw)
             return json.loads(raw.decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
             if i == tentativas - 1:
                 raise
             time.sleep(3 * (i + 1))

@@ -23,9 +23,10 @@ A AREA DE ANALISE E O CAMPO QUE FALTAVA
 PAREAMENTO
     Por ORDEM dentro do municipio, depois de retirar da sintese os pontos que
     a coordenacao excluiu da analise (EXCLUIDOS, abaixo). A ordem da sintese e
-    a ordem de visitacao, e e a mesma da camada. O script confere o alinhamento
-    antes de gravar: se a semelhanca entre os nomes pareados cair demais, ele
-    para e mostra o cotejo, em vez de renomear errado.
+    a ordem de visitacao, e e a mesma da camada. O script mostra o cotejo e
+    lista os pares de baixa semelhanca entre os nomes (abaixo de 0,55). Sem
+    --aplicar, nada e gravado; com --aplicar, todos os pares sao gravados,
+    inclusive os de baixa semelhanca. Por isso a conferencia vem antes.
 
 USO
     python 31_nomes_oficiais_pontos.py            # so confere e mostra

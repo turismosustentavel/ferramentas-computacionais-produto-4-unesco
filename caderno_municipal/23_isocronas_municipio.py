@@ -5,8 +5,8 @@ CADERNO DE INFORMACOES POR MUNICIPIO | PRODUTO 4
 ISOCRONAS RODOVIARIAS A PARTIR DO MUNICIPIO
 ================================================================================
 Tempo de viagem por estrada a partir do centro do municipio, no mesmo metodo
-das isocronas regionais do Produto 4
-(regional/04_modelagem_isocronas_acessibilidade). Calcula:
+das isocronas regionais do Produto 4 (a modelagem regional nao esta neste
+repositorio). Calcula:
 
     - o tempo de cada via da malha principal a partir da origem e a faixa de
       tempo em que ela cai (ate 8 h);
@@ -16,7 +16,7 @@ das isocronas regionais do Produto 4
 
 METODO
     origem      ponto de convergencia dos trajetos modelados entre os
-                atrativos e o centro da mancha de Atividades Caracteristicas
+                atrativos e o centro da area das Atividades Caracteristicas
                 do Turismo (ACTs) do municipio
                 (fluxos_p4.centro_da_modelagem); sem trajetos, um ponto
                 interior do poligono municipal (IBGE)

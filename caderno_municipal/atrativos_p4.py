@@ -21,40 +21,11 @@ from __future__ import annotations
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from pathlib import Path
 
 from comum import PRODUCAO
 
 RELATORIO = (PRODUCAO / "Seleção dos pontos para aferição" /
              "Atrativos_Relevantes_Por_Cidade.md")
-
-METODOLOGIA = (
-    "A hierarquização dos atrativos foi estabelecida a partir de pesquisa "
-    "qualitativa e netnográfica — análise de blogs de viagem, portais "
-    "especializados de turismo, relatos em vlogs do YouTube e avaliações no "
-    "TripAdvisor —, combinando três indicadores: a recorrência digital do "
-    "atrativo, o volume e a nota das avaliações de reputação, e o escopo "
-    "geográfico de sua atratividade, classificado em cinco dimensões, da "
-    "internacional à local."
-)
-
-DIMENSOES = [
-    ("Internacional / Global",
-     "apelo turístico internacional, motivação primária de viagem, dezenas de "
-     "milhares de avaliações em plataformas globais"),
-    ("Trinacional / Fronteiriço",
-     "integração transnacional direta entre Brasil, Argentina e Paraguai, "
-     "impulsionada pela dinâmica de fronteira, comércio e marcos geográficos"),
-    ("Nacional / Regional Indutor",
-     "capacidade de atração estadual ou nacional, ancorada no ecoturismo de "
-     "grande porte, ecossistemas protegidos e rios federais"),
-    ("Regional / Microrregional",
-     "ecoturismo, turismo rural, religioso e cultural que atraem visitantes "
-     "da microrregião e dos municípios vizinhos"),
-    ("Local / Suporte Urbano",
-     "lazer urbano, turismo religioso ou cultural de alcance local e pontos "
-     "de referência ou suporte aos visitantes"),
-]
 
 
 def _chave(s: str) -> str:

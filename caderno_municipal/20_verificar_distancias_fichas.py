@@ -14,9 +14,19 @@ registrado contra a posicao real:
                   ficha nomeia; sem nome, a referencia adotada e declarada
     distancia     em linha reta e pela malha viaria (OSRM, perfil carro)
 
-Veredito: CONSISTENTE quando o registrado fica a ate 1 km ou 35 % da
-distancia viaria; DIVERGENTE fora disso; NAO VERIFICAVEL quando a referencia
-nao pode ser localizada sem inventar o que a equipe quis dizer.
+Distancia de referencia: a viaria. Sem rota, ou com rota acima de 2,2 vezes
+a linha reta (o roteador contornou o sitio), a referencia e a linha reta
+x 1,3, marcada como estimada.
+
+Veredito:
+    CONSISTENTE            com rota: o registrado fica a ate 1 km ou 35 % da
+                           referencia; com referencia estimada: o registrado
+                           fica entre 0,8 x reta - 0,5 km e 1,8 x reta + 1 km
+    DIVERGENTE - MODERADA  fora disso, com razao registrado/referencia entre
+                           0,5 e 2,0
+    DIVERGENTE - FORTE     razao fora de 0,5 a 2,0
+    NAO VERIFICAVEL        a referencia nao pode ser localizada sem inventar
+                           o que a equipe quis dizer
 
 A cobertura - quantas fichas deixaram esses campos em branco - e registrada
 junto, porque a ausencia tambem e resultado.
@@ -37,6 +47,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import geopandas as gpd
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -166,7 +177,6 @@ def geocodificar(q: str):
 # ══════════════════════════════════════════════════════════════════════════════
 # PONTOS DE REFERENCIA
 # ══════════════════════════════════════════════════════════════════════════════
-import geopandas as gpd                                          # noqa: E402
 camada = gpd.read_file(CAMPO / "03_Pontos_Afericao" / "vetores_gis" /
                        "pontos_afericao_consolidados.geojson")
 
@@ -224,7 +234,6 @@ def referencia(tipo: str, texto: str | None, municipio, uf: str, origem):
     if tipo == "atrativo":
         t = (texto or "").lower()
         if "paraguai" in t:
-            p = ponto_da_camada(cidade, "Aduana")
             ponte = camada[(camada.cidade == cidade)
                            & camada.nome_ponto.astype(str).str.contains("Amizade")]
             if len(ponte):

@@ -115,19 +115,6 @@ def faixas_etarias(p: dict) -> dict[int, dict]:
     return faixas
 
 
-def piramide_percentual(p: dict) -> list[dict]:
-    """Participação de cada faixa e sexo na população total, em %."""
-    faixas = faixas_etarias(p)
-    if not faixas:
-        return []
-    ordem = sorted(faixas)
-    total = sum(f["Homens"] + f["Mulheres"] for f in faixas.values())
-    return [{"faixa": faixas[k]["rot"],
-             "homens_pct": faixas[k]["Homens"] / total * 100,
-             "mulheres_pct": faixas[k]["Mulheres"] / total * 100}
-            for k in ordem]
-
-
 def estrutura_etaria(p: dict) -> dict | None:
     """Grandes grupos de idade, mulheres e razão de dependência, em %."""
     faixas = faixas_etarias(p)

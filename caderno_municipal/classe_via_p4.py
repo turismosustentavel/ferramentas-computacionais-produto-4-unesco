@@ -26,10 +26,9 @@ OVERPASS = ["https://overpass-api.de/api/interpreter",
             "https://z.overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter"]
 
-# A etiqueta do OSM e o nome que se usa no texto. A ordem e a hierarquia:
-# quando duas vias estao igualmente perto, vence a de maior papel na malha.
-# O rótulo entra numa coluna chamada "papel na malha": repetir "via" ali
-# seria dizer duas vezes a mesma coisa, e a coluna é estreita.
+# A etiqueta do OSM e o rotulo da classe funcional (o papel da via na malha,
+# sem a palavra "via"). A ordem e a hierarquia: quando duas vias estao
+# igualmente perto, vence a de maior papel na malha.
 HIERARQUIA = [
     ("motorway", "expressa"),
     ("trunk", "ligação principal"),

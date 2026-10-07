@@ -263,22 +263,11 @@ def resumo_rodoviaria(itens: dict | None) -> dict | None:
         return None
     lr = itens["linhas"]
     falta = [x["item"].lower() for x in lr if x["estado"] is False]
-    temas = list(dict.fromkeys(x["tema"] for x in lr))
-
-    def _itens(tema, estado):
-        return [x["item"].lower() for x in lr
-                if x["tema"] == tema and x["estado"] is estado]
-
-    acesso = next((t for t in temas if "cesso" in t), None)
     saida = {
         "ponto": itens.get("ponto"),
         "itens": len(lr),
         "ausentes": len(falta),
         "itens_ausentes": falta,
-        "tema_inicial": temas[0],
-        "presentes_no_tema_inicial": _itens(temas[0], True),
-        "tema_de_acesso": acesso,
-        "presentes_no_tema_de_acesso": _itens(acesso, True) if acesso else [],
         "tema_com_mais_ausencias": None,
         "ausencias_no_tema": None,
         "ausencias_concentradas": False,

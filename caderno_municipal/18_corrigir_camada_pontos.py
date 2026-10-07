@@ -58,8 +58,8 @@ CORRECOES = {
     # incompatível. O plano de coleta (georreferenciamento.xlsx, aba "Pontos
     # de coleta PR + Mundo Nov") mostra que são dois pontos distintos e
     # previstos — a rotatória do Catuaí, na rota de acesso sul, e o acesso
-    # aos atrativos. O que estava errado era o nome: a camada rebatizou os
-    # dois com o nome da avenida e apagou a distinção. Aqui ela volta.
+    # aos atrativos. A camada deu aos dois o nome da avenida; os nomes vêm
+    # depois da síntese de campo (31). Aqui se corrige a coordenada do #4.
     ("Foz do Iguaçu", "Ponto #4"): {
         "latitude": -25.614091,
         "longitude": -54.480673,
@@ -111,7 +111,7 @@ for (cidade, ordem), novo in CORRECOES.items():
     for k, v in novo.items():
         if not k.startswith("_"):
             g.at[i, k] = v
-    if "latitude" in novo:                       # correção só de atributo
+    if "latitude" in novo:                       # correção de posição
         g.at[i, "geometry"] = Point(novo["longitude"], novo["latitude"])
     g.at[i, "correcao"] = (f"{date.today():%Y-%m-%d}: era '{antes}'. "
                            + novo["_motivo"])

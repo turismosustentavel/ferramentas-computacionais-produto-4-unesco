@@ -13,7 +13,7 @@ O que cada script lê e grava está no [mapa de dados](../docs/mapa_de_dados.md)
 | Módulo | Conteúdo |
 |---|---|
 | `comum.py` | Registro canônico dos doze municípios (chave: código IBGE de 7 dígitos), normalização das grafias encontradas no acervo, leitura das coordenadas nos três formatos da planilha de campo, datas do Jotform, sistemas de referência e caminhos. |
-| `bases_p4.py` | Malhas oficiais (municípios, UF, país, faixa de fronteira, SNV, CIDE, reservatório de Itaipu, hidrografia do OSM), com as correções de superfície do SNV verificadas em campo. |
+| `bases_p4.py` | Malhas oficiais (municípios, UF, país, SNV, CIDE, reservatório de Itaipu), com as correções de superfície do SNV verificadas em campo. |
 | `fichas_p4.py` | Leitura das quatro fichas de campo (Geral, Rodoviária, Aeroporto, Aduana): escalas, direção de cada escala, notas normalizadas, caracterização da via, itens de presença. |
 
 ## Ordem de execução
@@ -24,7 +24,7 @@ O que cada script lê e grava está no [mapa de dados](../docs/mapa_de_dados.md)
 |---|---|
 | `08_extrair_ipardes.py` | Reduz as planilhas do IPARDES (PR) a formato longo e filtra os municípios do estudo. |
 | `09_coletar_sidra_ibge.py` | Coleta, pela API do SIDRA/IBGE, a base municipal uniforme para os doze municípios (mesmo ano e mesmo método). |
-| `10_coletar_mtur.py` | Coleta, no portal de dados abertos do Ministério do Turismo, o Mapa do Turismo, a categorização e o Cadastur; guarda o arquivo nacional e o recorte dos doze. |
+| `10_coletar_mtur.py` | Coleta, no portal de dados abertos do Ministério do Turismo, o Mapa do Turismo, a categorização e o CADASTUR; guarda o arquivo nacional e o recorte dos doze. |
 | `11_extrair_rais_turismo.py` | Agrega por município, por ACT e por sexo os vínculos formais no turismo (RAIS, conjunto do MTur). Depende do 10. |
 | `35_coletar_mapa_turismo_vigente.py` | Consulta a categoria e a região turística no Mapa do Turismo vigente, pela mesma API do sítio do MTur. |
 
@@ -37,7 +37,6 @@ O que cada script lê e grava está no [mapa de dados](../docs/mapa_de_dados.md)
 | `03_correcao_municipio_dos_pontos.py` | Aplica as regras de decisão sobre as divergências entre o município declarado em campo e o obtido pela geometria. Depende do 02. |
 | `18_corrigir_camada_pontos.py` | Corrige, na camada consolidada, os registros que não correspondem ao levantado em campo. |
 | `31_nomes_oficiais_pontos.py` | Leva para a camada consolidada o nome, a área de análise e a classificação turística de cada ponto, a partir da síntese de campo. Sem `--aplicar`, só confere. |
-| `05_pinos_campo_para_pontos.py` | Liga os pinos das listas de campo aos pontos da camada consolidada, por proximidade. |
 | `04_vinculo_fichas_pontos.py` | Liga cada ficha de campo ao ponto de aferição. |
 | `06_diario_de_campo.py` | Reconstrói a sequência do levantamento a partir do carimbo de envio de cada ficha. |
 | `20_verificar_distancias_fichas.py` | Confere as distâncias anotadas nas fichas contra a posição real (linha reta e malha viária). Depende do 04. |
@@ -46,7 +45,7 @@ O que cada script lê e grava está no [mapa de dados](../docs/mapa_de_dados.md)
 
 | Script | O que faz |
 |---|---|
-| `01_auditoria_cobertura.py` | Matriz município × fonte: o que existe e o que falta em cada fonte do acervo. |
+| `01_auditoria_cobertura.py` | Matriz município × fonte (o que existe e o que falta em cada fonte do acervo) e lista das lacunas de cada município. |
 | `12_montar_perfil_municipal.py` | Perfil consolidado de cada município, com a fonte de cada valor e as ausências declaradas. Depende de 01, 04, 09, 10, 11 e 32. |
 
 ### 4. Modelagem
@@ -55,19 +54,18 @@ Bibliotecas de cálculo, usadas pelas etapas seguintes:
 
 | Módulo | O que calcula |
 |---|---|
-| `fluxos_p4.py` | Trajetos, agrupamentos dos vértices das rotas (frequência e sobreposição de trajetos) e pontos selecionados. Depende da [seleção dos pontos](../selecao_pontos/README.md). |
+| `fluxos_p4.py` | Trajetos e agrupamentos dos vértices das rotas (frequência e sobreposição de trajetos). Depende da [seleção dos pontos](../selecao_pontos/README.md). |
 | `atrativos_p4.py` | Hierarquia dos atrativos de cada município, casada com a camada georreferenciada. |
 | `classe_via_p4.py` | Classe funcional (etiqueta `highway` do OpenStreetMap) da via em que cada ponto foi aferido. |
 | `presencas_p4.py` | Presença e ausência dos itens avaliados em campo, por tema. |
-| `terminais_p4.py` | Rodoviária e aeroporto de cada município comparados com os dos demais. |
 | `conectividade_p4.py` | Indicadores da ANATEL (IBC e componentes) e presença das plataformas de aplicativo. |
 | `trafego_p4.py` | Volume médio diário (PNCT/DNIT) por trecho do SNV e malha ferroviária. |
 | `intermunicipal_p4.py` | Linhas estaduais de ônibus (DER-PR e AGEMS) com geometria sobre a rodovia. |
-| `clickbus_p4.py` | Coleta da oferta de ônibus pela API de parceiros da ClickBus. |
-| `geckoapi_p4.py` | Coleta da oferta de ônibus da ClickBus pela GeckoAPI, com os destinos do DER-PR no Paraná. |
+| `geckoapi_p4.py` | Coleta da oferta de ônibus da ClickBus pela GeckoAPI, com os destinos do DER-PR no Paraná, para a data em `GECKOAPI_DATA` (padrão: a data da coleta original, 30/09/2026, que só se reproduz sobre o cache). Grava um resumo por destino; os registros de oferta lidos pelos indicadores têm outro formato (ver [mapa de dados](../docs/mapa_de_dados.md)). |
 
-Etapas que gravam as medidas por município, em `02_Dados_Municipais/<slug>/` (a ordem
-importa só onde indicado):
+Etapas que gravam as medidas por município, em `02_Dados_Municipais/<slug>/` (as
+isócronas, em `02_Dados_Municipais/isocronas/<slug>/`); a ordem importa só onde
+indicado:
 
 | Etapa | O que calcula | Depende de |
 |---|---|---|
@@ -93,8 +91,8 @@ fonte.
 | Variável | Usada por |
 |---|---|
 | `P4_DADOS` | todos |
-| `CLICKBUS_BASE`, `CLICKBUS_SENHA` | `clickbus_p4.py` |
 | `GECKOAPI_KEYS` (ou `GECKOAPI_KEY`) | `geckoapi_p4.py` |
+| `GECKOAPI_DATA` (AAAA-MM-DD) | `geckoapi_p4.py`; data já passada só funciona sobre o cache |
 
 As consultas ao OpenStreetMap (Overpass, Nominatim, OSRM) não exigem chave.
 

@@ -36,7 +36,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from comum import ACERVO, MUNICIPIOS, normalizar_municipio  # noqa: E402
+from comum import ACERVO, normalizar_municipio  # noqa: E402
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 

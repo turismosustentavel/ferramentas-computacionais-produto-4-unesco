@@ -381,10 +381,8 @@ def onibus(m, mun: gpd.GeoDataFrame) -> dict:
     che = b[b._d == alvo_txt].assign(outro=lambda x: x._o, sentido="chegada")
     fl = pd.concat([sai, che])
     fl = fl[fl.outro != alvo_txt]
-    fl["receita"] = fl.media_valor_total * fl.quantidade_bilhetes
     ag = (fl.groupby("outro")
-          .agg(bilhetes=("quantidade_bilhetes", "sum"),
-               receita=("receita", "sum"))
+          .agg(bilhetes=("quantidade_bilhetes", "sum"))
           .reset_index())
     pagos = fl[fl.media_valor_total > 0]
     tar = (pagos.assign(r=pagos.media_valor_total * pagos.quantidade_bilhetes)

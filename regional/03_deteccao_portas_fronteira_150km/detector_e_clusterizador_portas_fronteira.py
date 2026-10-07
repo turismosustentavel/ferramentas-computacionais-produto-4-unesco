@@ -91,7 +91,7 @@ portas_federais = [
 ]
 
 def exportar_portas_federais():
-    print("\n[1/2] Processando e exportando as 18 Portas Rodoviárias Federais...")
+    print(f"\n[1/2] Processando e exportando as {len(portas_federais)} Portas Rodoviárias Federais...")
     df_fed = pd.DataFrame(portas_federais)
     gdf_fed = gpd.GeoDataFrame(df_fed, geometry=[Point(xy) for xy in zip(df_fed.lon, df_fed.lat)], crs="EPSG:4326")
     
@@ -102,10 +102,10 @@ def exportar_portas_federais():
     gdf_fed_sirgas = gdf_fed.to_crs(epsg=4674)
     shp_out = os.path.join(folder_13, "13_portas_federais_18_pontos_shp.shp")
     gdf_fed_sirgas.to_file(shp_out)
-    print(f" [OK] 18 Portas Federais salvas em GeoJSON ({geojson_out}) e Shapefile ({shp_out})")
+    print(f" [OK] {len(gdf_fed_sirgas)} Portas Federais salvas em GeoJSON ({geojson_out}) e Shapefile ({shp_out})")
 
 def exportar_portas_estaduais():
-    print("\n[2/2] Processando e exportando as 30 Portas Rodoviárias Estaduais...")
+    print("\n[2/2] Processando e exportando as Portas Rodoviárias Estaduais...")
     # Leitura da camada existente: Shapefile da pasta 14 ou, na falta dele,
     # GeoJSON da pasta 12
     src_est = os.path.join(folder_14, "14_portas_estaduais_30_pontos_shp.shp")
@@ -119,7 +119,7 @@ def exportar_portas_estaduais():
     gdf_est.to_file(geojson_out, driver="GeoJSON")
     shp_out = os.path.join(folder_14, "14_portas_estaduais_30_pontos_shp.shp")
     gdf_est.to_crs(epsg=4674).to_file(shp_out)
-    print(f" [OK] 30 Portas Estaduais salvas em GeoJSON ({geojson_out}) e Shapefile ({shp_out})")
+    print(f" [OK] {len(gdf_est)} Portas Estaduais salvas em GeoJSON ({geojson_out}) e Shapefile ({shp_out})")
 
 def main():
     parser = argparse.ArgumentParser(description="Detector e Consolidador de Portas de Fronteira")

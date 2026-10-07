@@ -13,8 +13,8 @@ PROBLEMA QUE RESOLVE:
     texto bruto produz contagens erradas.
 
 SOLUCAO:
-    Chave unica = codigo IBGE de 7 digitos. Toda leitura de dado passa por
-    `normalizar_municipio()` antes de agrupar.
+    Chave unica = codigo IBGE de 7 digitos. Os agrupamentos por municipio
+    passam por `normalizar_municipio()`.
 
 CAMINHOS:
     Todos os caminhos partem de RAIZ, lida da variavel de ambiente P4_DADOS.
@@ -29,14 +29,14 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 
 # ==============================================================================
 # CAMINHOS DO PROJETO
 # ==============================================================================
-RAIZ = Path(os.environ.get(
-    "P4_DADOS", Path(__file__).resolve().parents[1] / "dados"))
+RAIZ = Path(os.environ.get("P4_DADOS")
+            or Path(__file__).resolve().parents[1] / "dados")
 ENTREGAS = RAIZ / "Entregas" / "Produto 4"
 ACERVO = RAIZ / "Levantamentos e Análises" / "Produto 4"
 PRODUCAO = ENTREGAS / "produção"
@@ -199,16 +199,6 @@ def normalizar_municipio(texto: str) -> Municipio | None:
     return POR_CODIGO.get(codigo) if codigo else None
 
 
-def codigo_de(texto: str) -> int | None:
-    m = normalizar_municipio(texto)
-    return m.codigo_ibge if m else None
-
-
-def nome_canonico(texto: str) -> str | None:
-    m = normalizar_municipio(texto)
-    return m.nome if m else None
-
-
 # ==============================================================================
 # COORDENADAS
 # ==============================================================================
@@ -286,31 +276,6 @@ def coordenada_plausivel(lat, lon) -> bool:
     if lat is None or lon is None:
         return False
     return -34.0 <= lat <= -5.0 and -62.0 <= lon <= -44.0
-
-
-def aplicar_em_coluna(serie, sufixo_uf: bool = False):
-    """Normaliza uma coluna pandas de nomes de municipio."""
-    def _f(v):
-        m = normalizar_municipio(v)
-        if m is None:
-            return None
-        return m.nome_uf if sufixo_uf else m.nome
-    return serie.map(_f)
-
-
-if __name__ == "__main__":
-    import sys, io, json
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-    print(f"{len(MUNICIPIOS)} municipios no registro canonico\n")
-    for m in MUNICIPIOS:
-        print(f"  {m.ordem:>2}. {m.codigo_ibge}  {m.nome_uf:<26} {m.slug}")
-    print("\nTeste de normalizacao das grafias divergentes do acervo:")
-    testes = ["Ponta Porã", "Ponta Porã ", "Ponta pora", "Dionísio Cerqueira",
-              "Dionício Cerqueira", "Bonito ", "Campo grande", "PR - Barracão",
-              "SC - Dionísio Cerqueira", "07. Foz do Iguaçu - PR", "Inexistente"]
-    for t in testes:
-        m = normalizar_municipio(t)
-        print(f"  {t!r:<30} -> {m.nome_uf if m else 'NAO RECONHECIDO'}")
 
 
 # ==============================================================================
@@ -438,3 +403,20 @@ def fronteiricas_de(municipio: str) -> list[tuple[str, float, float]]:
     """As cidades em frente a este município."""
     return [(n, lon, lat) for n, lon, lat, gemeos in FRONTEIRICAS
             if municipio in gemeos]
+
+
+if __name__ == "__main__":
+    # Conferencia do registro e da normalizacao: python comum.py
+    import io
+    import sys
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    print(f"{len(MUNICIPIOS)} municipios no registro canonico\n")
+    for m in MUNICIPIOS:
+        print(f"  {m.ordem:>2}. {m.codigo_ibge}  {m.nome_uf:<26} {m.slug}")
+    print("\nTeste de normalizacao das grafias divergentes do acervo:")
+    testes = ["Ponta Porã", "Ponta Porã ", "Ponta pora", "Dionísio Cerqueira",
+              "Dionício Cerqueira", "Bonito ", "Campo grande", "PR - Barracão",
+              "SC - Dionísio Cerqueira", "07. Foz do Iguaçu - PR", "Inexistente"]
+    for t in testes:
+        m = normalizar_municipio(t)
+        print(f"  {t!r:<30} -> {m.nome_uf if m else 'NAO RECONHECIDO'}")

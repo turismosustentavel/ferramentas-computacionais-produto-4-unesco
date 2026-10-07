@@ -867,7 +867,6 @@ def resumo_conectividade(m, cx: dict | None = None) -> dict | None:
     if not cx or not cx["indicadores"]:
         return None
     ind = cx["indicadores"]
-    conc = [i for i in ind if not i["maior_e_melhor"]]
     pl = cx.get("plataformas") or {}
     loc = (cx.get("locais") or {}).get("mobilidade local", "")
     i0 = ind[0]
@@ -877,9 +876,6 @@ def resumo_conectividade(m, cx: dict | None = None) -> dict | None:
                    if i["maior_e_melhor"] and i["posicao"] == 1],
         "abaixo_da_metade": [i["rotulo"] for i in ind
                              if i["maior_e_melhor"] and i["posicao"] > METADE],
-        "menor_e_melhor": [i["rotulo"] for i in conc],
-        "menor_e_melhor_entre_os_tres_ultimos":
-            bool(conc and all(i["posicao"] >= 10 for i in conc)),
         "primeiro_indicador": i0["rotulo"],
         "primeiro_posicao": i0["posicao"], "primeiro_valor": i0["valor"],
         "primeiro_media": i0["media"],

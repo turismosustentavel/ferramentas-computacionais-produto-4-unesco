@@ -24,9 +24,9 @@ ESCALAS
     Foz tem "Intensidade do fluxo = 100") sao reportados como tal, nunca
     reinterpretados.
 
-    Verificacao: o relatorio do Produto 4 descreve a rodoviaria de Foz com
-    conservacao "ruim" e limpeza "pessima"; a ficha traz 2 e 1. A leitura
-    direta 1 = pessimo ... 5 = otimo e a adotada.
+    Na escala de qualidade a leitura e direta, 1 = pessimo ... 5 = otimo: a
+    ficha da rodoviaria de Foz, por exemplo, traz conservacao 2 (ruim) e
+    limpeza 1 (pessimo).
 
 ENTRADA (relativa a P4_DADOS)
     Levantamentos e Análises/Produto 4/03_Pesquisa_de_Campo_Primaria/
@@ -37,7 +37,6 @@ ENTRADA (relativa a P4_DADOS)
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import pandas as pd
 
@@ -176,29 +175,17 @@ BLOCOS = {
     ],
 }
 
-# campos que so identificam (o nome do ponto de onibus vira titulo do subgrupo)
+# ficha Geral: coluna em que comeca cada um dos quatro pontos de onibus (o
+# campo so identifica o ponto) -> numero do ponto de onibus
 PONTO_ONIBUS = {72: 1, 82: 2, 92: 3, 102: 4}
 
-# Datas digitadas nas fichas divergem da data de envio em 71 de 97 casos
+# Campos de identificacao e de data, fora das presencas. As datas digitadas
+# nas fichas divergem da data de envio em 71 de 97 casos
 # (06_diario_de_campo.py); a Ponte da Amizade aparece como "mar. 7, 2026".
-# Nao entram no texto: a cronologia de campo e a do diario.
+# A cronologia de campo e a do diario.
 OMITIR = ("Data", "Data e horário da visita", "Submission Date", "Registro",
           "Nome", "Município", "Município de coleta", "Ponto de análise",
           "Nome da aduana", "Nome do aeroporto")
-
-# campos cujo valor e nome proprio e mantem a grafia
-NOMES_PROPRIOS = ("País", "Principal atrativo", "Identificação do centro",
-                  "Local definido", "Órgãos presentes", "Idiomas", "Ponto 1",
-                  "Ponto 2", "Ponto 3", "Ponto 4", "Abrangência")
-
-GRAFIA = {"Quadrupla": "quádrupla", "Tripla": "tripla", "Veiculos": "veículos",
-          "sonorico": "sonoro", "táctil": "tátil", "Taxi": "táxi",
-          "15-30 min": "15 a 30 min", "30-60 min": "30 a 60 min"}
-
-UNIDADE_KM = ("Distância",)
-
-FILTROS = ("Tem rua?", "Possui calçada?", "Possui ciclovia?",
-           "Possui ponto de ônibus?", "Possui ponto de táxi?")
 
 _cache: dict = {}
 
@@ -248,15 +235,6 @@ def _nome(col: str) -> str:
     return n[0].lower() + n[1:]
 
 
-def _valor(col: str, v: str) -> str:
-    """Grafia padronizada do valor."""
-    for errado, certo in GRAFIA.items():
-        v = v.replace(errado, certo)
-    if any(col.startswith(p) for p in NOMES_PROPRIOS):
-        return v
-    return v[0].lower() + v[1:] if v and not v[:2].isupper() else v
-
-
 def _escala(formulario: str, col: str):
     for frag, rot, direcao in ESCALAS.get(formulario, []):
         if frag.lower() in col.lower():
@@ -284,21 +262,7 @@ def ler(formulario: str, col: str, valor):
         if float(num) == n and 1 <= n <= len(rot):
             return ("nota", n, rot[n - 1], direcao)
         return ("fora", v)
-    if pd.notna(num):
-        txt = f"{num:g}".replace(".", ",")
-        if col.startswith(UNIDADE_KM):
-            txt += " km"
-        return ("texto", txt)
-    partes = [_valor(col, p.strip())
-              for p in v.replace("\r", "").split("\n") if p.strip()]
-    return ("texto", _lista(partes))
-
-
-def _lista(itens, conj: str = "e") -> str:
-    itens = [i for i in itens if i]
-    if len(itens) <= 1:
-        return "".join(itens)
-    return ", ".join(itens[:-1]) + f" {conj} " + itens[-1]
+    return ("texto", v)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -385,7 +349,7 @@ def presencas(formulario: str, reg: pd.Series) -> list[tuple[str, bool]]:
             if r and r[0] in ("sim", "nao"):
                 nome = _nome(cols[i])
                 # fila e ocorrencia, nao infraestrutura: um "sim" ali e
-                # problema, e o sinal de marcado o leria como qualidade
+                # problema, e nao presenca de um item
                 if nome.lower().startswith("formação de filas"):
                     continue
                 if formulario == "Geral" and 72 <= i <= 81:

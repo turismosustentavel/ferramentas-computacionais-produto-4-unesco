@@ -27,7 +27,7 @@ MEDIDAS (metricas_deslocamento_<slug>.json)
                     cálculo, com o motivo
     trajetos        total; extensão média, mediana, máxima e somada (km, uma
                     casa)
-    sobreposicao    método e raio do agrupamento (fluxos_p4); agrupamentos
+    sobreposicao    raio do agrupamento (fluxos_p4); agrupamentos
                     retidos; vértices do município; frequência máxima e
                     média (uma casa); agrupamentos com frequência acima da
                     média; rotas distintas no agrupamento de maior
@@ -351,9 +351,7 @@ def metricas(m, res: dict) -> dict:
             "principais": [{"rank": int(g.ord), "nome": str(g.rotulo),
                             "distancia_km": round(float(g.d_km), 1),
                             "rota_km": rota_km.get(str(g.NOME))}
-                           for g in (at[at.principal] if "principal" in at
-                                     else at[at.ord <= 5]
-                                     .drop_duplicates("ord"))
+                           for g in at[at.principal]
                            .sort_values("ord").itertuples()],
             "tabela_relevancia": res["tabela_relevancia"],
             "corrigidos": res["corrigidos"],
@@ -374,7 +372,6 @@ def metricas(m, res: dict) -> dict:
         top_freq = clusters.nlargest(1, "freq").iloc[0]
         top_rotas = clusters.nlargest(1, "rotas_distintas").iloc[0]
         met["sobreposicao"] = {
-            "metodo": fx.METODO,
             "raio_agrupamento_m": fx.EPS_METROS,
             "total": int(len(clusters)),
             "vertices": int(len(fx._vertices(m.nome))),

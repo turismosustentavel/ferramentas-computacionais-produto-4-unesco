@@ -22,7 +22,6 @@ from comum import PRODUCAO
 
 ARQ = (PRODUCAO / "11_transporte_regional_intra_faixa"
        / "linhas_onibus_intra_faixa_fronteira.geojson")
-COR = "#eb6834"                  # laranja categórico; o azul é da ANTT
 _CACHE: dict = {}
 
 
@@ -57,18 +56,3 @@ def do_municipio(geom_municipio, crs, folga_m: float = 3000.0):
         return None
     sub = g[g.intersects(geom_municipio.buffer(folga_m))]
     return sub if len(sub) else None
-
-
-def descrever(linha) -> dict:
-    """Os atributos da linha: rodovias, viações, frequência, extensão, tempo e tarifa."""
-    return {
-        "nome": str(linha.nome_linha),
-        "rodovias": str(linha.rodovias),
-        "viacoes": str(linha.viacoes),
-        "tipo": str(linha.tipo_linha),
-        "partidas_dia": _num(linha.partidas),
-        "frequencia": str(linha.frequencia),
-        "extensao_km": float(linha.ext_km),
-        "tempo": str(linha.tempo_med),
-        "tarifa": str(linha.tarifa_med),
-    }

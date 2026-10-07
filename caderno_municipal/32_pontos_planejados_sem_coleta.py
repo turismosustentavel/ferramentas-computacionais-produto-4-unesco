@@ -44,7 +44,7 @@ ABAS = {
 def arrumar(s: str) -> str:
     """Espacamento das siglas de rodovia: 'BR - 163' e 'MS - 080'."""
     s = re.sub(r"\s+", " ", str(s or "")).strip()
-    return re.sub(r"(BR|PR|MS|SC)\s*-\s*(\d)", r"-", s, flags=re.I)
+    return re.sub(r"\b(BR|PR|MS|SC)\s*-\s*(\d)", r"\1-\2", s, flags=re.I)
 
 
 def _chave(s: str) -> str:

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from pathlib import Path
 
 import json
 
@@ -53,9 +52,9 @@ INDICADORES = [
 PLATAFORMAS = [("99", "99"), ("Uber", "Uber"), ("Ifood", "iFood")]
 LOCAIS = [("App de mobilidade local", "mobilidade local"),
           ("App de delivery local", "delivery local")]
-# As plataformas de entrega (iFood, aiqfome) saíram em 29/09: não tratam de
-# mobilidade nem de conectividade (decisão do usuário). Ficam as nacionais
-# de transporte por aplicativo e os aplicativos locais de mobilidade.
+# Plataformas nacionais consideradas: as de transporte por aplicativo. As de
+# entrega (iFood, aiqfome) ficam fora desde 29/09/2026: não tratam de
+# mobilidade nem de conectividade.
 NACIONAIS = [("99", "transporte"), ("Uber", "transporte")]
 
 
@@ -76,9 +75,6 @@ def presenca(slug: str, linha) -> tuple[dict, dict]:
             tem[rot], fonte[rot] = bool(v[rot]), "lista oficial"
         elif rot in col:
             tem[rot] = str(linha[col[rot]]).strip().lower().startswith("tem")
-            fonte[rot] = "planilha"
-        else:   # aiqfome sem conferência: o que a planilha trouxer
-            tem[rot] = "aiqfome" in str(linha["App de delivery local"]).lower()
             fonte[rot] = "planilha"
     return tem, fonte
 
@@ -155,23 +151,3 @@ def do_municipio(slug: str) -> dict | None:
     saida["locais"] = {rot: _sem_nacionais(str(linha[col]))
                        for col, rot in LOCAIS}
     return saida
-
-
-def grade_plataformas() -> list[dict]:
-    """Os doze municípios e as plataformas presentes em cada um."""
-    d = tabela()
-    if d is None:
-        return []
-    ordem = {m.slug: m.ordem for m in MUNICIPIOS}
-    nomes = {m.slug: m.nome for m in MUNICIPIOS}
-    linhas = []
-    for _, r in d.iterrows():
-        locais = [x for x in (_sem_nacionais(str(r["App de mobilidade local"])),)
-                  if x]
-        tem, fonte = presenca(r.slug, r)
-        linhas.append({
-            "slug": r.slug, "nome": nomes.get(r.slug, r.Municipio),
-            "ordem": ordem.get(r.slug, 99), **tem, "fonte": fonte,
-            "locais": ", ".join(locais),
-        })
-    return sorted(linhas, key=lambda x: x["ordem"])

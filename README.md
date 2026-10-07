@@ -31,8 +31,8 @@ dependências entre etapas.
 ```
   bases oficiais ──────────────┐
   (IBGE, MTur, RAIS, DNIT,     │
-   ANAC, ANATEL, IPARDES,      ▼
-   DER-PR, AGEMS, OSM)    regional/  ──────────────┐
+   ANTT, ANAC, ANATEL,         ▼
+   IPARDES, OSM)          regional/  ──────────────┐
                                                    │
   CNPJ + atrativos ──► selecao_pontos/ ──► campo ──┤
                        (rotas TomTom,     (fichas  │
@@ -54,6 +54,9 @@ source .venv/bin/activate       # Linux/macOS
 pip install -r requirements.txt
 ```
 
+As versões do `requirements.txt` são as da execução original. Com pandas 3, a etapa 9
+da seleção dos pontos falha.
+
 ## Configuração
 
 1. **Dados.** Defina `P4_DADOS` com a pasta onde estão os dados, organizada como
@@ -72,7 +75,20 @@ pip install -r requirements.txt
 - **Serviços comerciais** (geocodificação da Google, rotas e velocidades da TomTom,
   oferta da ClickBus): as respostas não são redistribuídas. Com chave própria, os
   scripts consultam de novo, mas o resultado reflete o estado do serviço na data da
-  execução.
+  execução. Na seleção dos pontos, as etapas da Google e da TomTom só refazem a
+  consulta com `P4_REFAZER_COLETAS=1`; sem isso, usam os arquivos já gravados.
+- **Serviços abertos do OpenStreetMap** (Overpass, Nominatim, OSRM): as respostas
+  usadas ficam em cache; sem o cache, a consulta reflete o estado atual do mapa.
+- **Oferta de ônibus**: os indicadores leem registros de oferta montados a partir
+  das consultas à ClickBus em 30/09/2026 e 03/10/2026; a montagem desses registros
+  não está no repositório. O `geckoapi_p4` refaz a consulta de uma data e grava um
+  resumo à parte, sem substituir os registros. Na falta do registro de um município,
+  o cálculo usa a amostra de oferta do diagnóstico regional, que também não tem
+  gerador aqui.
+- **Insumos preparados fora do repositório**: algumas camadas e tabelas (linhas
+  estaduais de ônibus, tabelas de ônibus do diagnóstico regional, volume médio diário
+  por trecho, planilha de conectividade, rotas aéreas e náuticas) foram montadas antes
+  e entram como insumo. O [mapa de dados](docs/mapa_de_dados.md) lista cada uma.
 - **Pesquisa de campo**: as fichas registram as condições observadas no momento da
   visita e contêm dados pessoais da equipe; não são distribuídas. Os scripts
   documentam como elas foram lidas e tratadas.

@@ -11,7 +11,7 @@ Reune, num arquivo por municipio, tudo o que a Fase 1 estabeleceu:
     demografia         populacao, area, densidade, urbano/rural, piramide etaria
     economia           PIB, valor adicionado por setor, emprego e massa salarial
     turismo_trabalho   vinculos formais no turismo por ACT e por sexo (RAIS 2025)
-    oferta             prestadores Cadastur por categoria
+    oferta             prestadores CADASTUR por categoria
     campo              pontos de afericao, fichas vinculadas, fotografias
     lacunas            o que falta e por que
 
@@ -36,7 +36,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 from comum import (  # noqa: E402
-    ACERVO, CAMPO, DIR_DADOS, MUNICIPIOS, POR_CODIGO,
+    ACERVO, CAMPO, DIR_DADOS, DIR_GESTAO, MUNICIPIOS,
 )
 
 # Pontos que constavam do plano de campo e nao foram aferidos
@@ -95,8 +95,7 @@ if p_vinc.exists():
     vinculo = pd.read_excel(p_vinc, sheet_name="Vínculo")
 
 cobertura = pd.DataFrame()
-p_cob = ACERVO.parent.parent / "Entregas" / "Produto 4" / "produção" / \
-    "Caderno de informações por município" / "00_Gestao" / "auditoria_cobertura.xlsx"
+p_cob = DIR_GESTAO / "auditoria_cobertura.xlsx"   # gravado pelo 01
 if p_cob.exists():
     cobertura = pd.read_excel(p_cob, sheet_name="Cobertura")
 
@@ -128,7 +127,7 @@ def mtur_campo(df: pd.DataFrame, cod: int, *nomes: str):
     return None
 
 
-# contagem do Cadastur por categoria
+# contagem do CADASTUR por categoria
 cadastur = {}
 for arq in sorted((MTUR / "recorte_12").glob("cadastur_*.csv")):
     d = ler(arq)
@@ -327,8 +326,8 @@ for m in MUNICIPIOS:
             "pib_mil_reais": pib_total,
             "pib_serie": sidra_serie(pib, cod, "Produto Interno Bruto a preços"),
             # A tabela 5938 nao publica PIB per capita; e calculado aqui, com a
-            # populacao do Censo 2022 - anos de referencia diferentes, o que
-            # deve ser declarado no texto.
+            # populacao do Censo 2022. O PIB e de outro ano de referencia
+            # (ano_referencia), entao a razao mistura anos.
             "pib_per_capita_calculado": (round(pib_total * 1000 / populacao, 2)
                                          if pib_total and populacao else None),
             # o VA setorial sai um ano depois do PIB total: ano proprio
@@ -375,7 +374,7 @@ for m in MUNICIPIOS:
         "PIB per capita": e["pib_per_capita_calculado"],
         "Vínculos turismo": tur.get("vinculos"),
         "Remuneração média turismo": tur.get("remuneracao_media"),
-        "Cadastur (total)": sum(perfil["oferta_cadastur"].values()),
+        "CADASTUR (total)": sum(perfil["oferta_cadastur"].values()),
         "Pontos de aferição": campo.get("pontos_selecionados"),
         "Fichas vinculadas": campo.get("fichas_vinculadas"),
         "Fotografias": campo.get("fotografias"),
